@@ -1,0 +1,5 @@
+{
+  "name": "SwapCircle",
+  "description": "A beautiful, real-time second-hand exchange platform where users can post items, comment, and message each other for swaps.",
+  "requestFramePermissions": []
+}
