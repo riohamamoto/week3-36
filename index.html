@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>二手交換物品 - 純 HTML 版</title>
+    <title>二手交換物品 - Google Sheet 版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -65,7 +65,6 @@
 </head>
 <body class="min-h-screen">
 
-    <!-- Navbar -->
     <nav class="bg-white border-b border-gray-100 sticky top-0 z-40">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16 items-center">
@@ -77,7 +76,6 @@
                         <span class="text-lg font-bold tracking-tight">二手交換</span>
                     </div>
                     
-                    <!-- Desktop Category Filter -->
                     <div class="hidden md:flex items-center gap-1 bg-gray-50 p-1 rounded-lg border border-gray-200" id="categoryGroup">
                         <button onclick="setCategory('全部')" class="cat-btn px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-white text-black shadow-sm border border-gray-200">全部</button>
                         <button onclick="setCategory('運動用品')" class="cat-btn px-3 py-1.5 text-sm font-medium rounded-md transition-all text-gray-500 hover:text-black">運動用品</button>
@@ -103,7 +101,6 @@
     </nav>
 
     <main class="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <!-- Stats and Status Filter -->
         <div class="mb-8 p-6 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div class="flex items-center gap-8">
                 <div class="flex flex-col">
@@ -137,19 +134,15 @@
             </button>
         </div>
 
-        <!-- Items Grid -->
         <div id="itemsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            <!-- Items injected by JS -->
-        </div>
+            </div>
 
-        <!-- Empty State -->
         <div id="emptyState" class="hidden flex flex-col items-center justify-center h-64 text-gray-400">
             <i data-lucide="package-search" class="w-12 h-12 mb-4"></i>
             <p>沒有找到相關物品</p>
         </div>
     </main>
 
-    <!-- Modal for Posting -->
     <div id="postModal" class="modal-overlay">
         <div class="modal-content">
             <div class="flex justify-between items-center mb-6">
@@ -198,25 +191,50 @@
     </div>
 
     <script>
+        // --- Configuration ---
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwxsA7XBVc0clF3rKxSG7upHXY3gjTG7VG6hVRPbzyrQwtCvzx_dLBo7X7bz9QhSadF/exec"; // 請在此貼上部署後的 URL
+
         // Global State
         let currentStatusFilter = '全部';
         let currentCategory = '全部';
 
-        // --- Core Functions (Required by Rule #6) ---
+        // --- Core Functions ---
 
         /**
-         * 5. 保存數據到 localStorage
-         * 規則：保存到 "records" key，格式為 JSON.stringify
+         * 同步資料到 Google Sheet 的 Helper
+         */
+        async function syncToSheet(payload) {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("PASTE_YOUR")) {
+                console.warn("Apps Script URL 未設定，僅同步至 localStorage");
+                return;
+            }
+            try {
+                // 使用 text/plain 以避免 CORS preflight 問題 (Google Apps Script 特性)
+                await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', 
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify(payload)
+                });
+            } catch (err) {
+                console.warn("Google Sheet 同步失敗:", err);
+            }
+        }
+
+        /**
+         * 保存數據
          */
         function saveData(newRecord) {
             const records = loadData();
             records.unshift(newRecord);
             localStorage.setItem("records", JSON.stringify(records));
+            
+            // 同步到 Sheet
+            syncToSheet({ action: "create", record: newRecord });
         }
 
         /**
-         * 5. 加載數據
-         * 規則：從 "records" key 讀取
+         * 加載數據 (從 localStorage 作為 Backup)
          */
         function loadData() {
             const data = localStorage.getItem("records");
@@ -224,7 +242,7 @@
         }
 
         /**
-         * 6. 渲染列表
+         * 渲染列表
          */
         function renderList() {
             const allRecords = loadData();
@@ -232,7 +250,6 @@
             const grid = document.getElementById('itemsGrid');
             const emptyState = document.getElementById('emptyState');
 
-            // Apply Filters
             const filtered = allRecords.filter(item => {
                 const statusMatch = currentStatusFilter === '全部' || item.status === currentStatusFilter;
                 const categoryMatch = currentCategory === '全部' || item.category === currentCategory;
@@ -241,12 +258,10 @@
                 return statusMatch && categoryMatch && searchMatch;
             });
 
-            // Update Stats
             document.getElementById('statActive').innerText = allRecords.filter(r => r.status === 'active').length;
             document.getElementById('statDone').innerText = allRecords.filter(r => r.status === 'done').length;
             document.getElementById('statTotal').innerText = allRecords.length;
 
-            // Generate HTML
             grid.innerHTML = '';
             if (filtered.length === 0) {
                 emptyState.classList.remove('hidden');
@@ -310,7 +325,6 @@
                 grid.innerHTML += cardHTML;
             });
 
-            // Re-initialize icons
             lucide.createIcons();
         }
 
@@ -329,7 +343,6 @@
             e.preventDefault();
             const formData = new FormData(e.target);
             
-            // 4. Record Fields Rule
             const newRecord = {
                 id: Date.now() + "_" + Math.random().toString(36).slice(2,6),
                 createdAt: new Date().toISOString(),
@@ -338,7 +351,7 @@
                 category: formData.get('category'),
                 price: parseFloat(formData.get('price')),
                 imageUrl: formData.get('imageUrl'),
-                status: "active" // Default
+                status: "active" 
             };
 
             saveData(newRecord);
@@ -354,11 +367,9 @@
                                  (status === 'active' && btn.innerText.includes('Active')) || 
                                  (status === 'done' && btn.innerText.includes('Done'));
                 
-                if (isActive) {
-                    btn.className = "status-btn px-4 py-1.5 rounded-lg text-sm font-medium transition-all bg-white text-black shadow-sm ring-1 ring-gray-200";
-                } else {
-                    btn.className = "status-btn px-4 py-1.5 rounded-lg text-sm font-medium transition-all text-gray-500 hover:text-gray-700";
-                }
+                btn.className = isActive 
+                    ? "status-btn px-4 py-1.5 rounded-lg text-sm font-medium transition-all bg-white text-black shadow-sm ring-1 ring-gray-200"
+                    : "status-btn px-4 py-1.5 rounded-lg text-sm font-medium transition-all text-gray-500 hover:text-gray-700";
             });
             renderList();
         }
@@ -368,11 +379,9 @@
             document.getElementById('listTitle').innerText = cat === '全部' ? '所有物品' : cat;
             const buttons = document.querySelectorAll('#categoryGroup button');
             buttons.forEach(btn => {
-                if (btn.innerText === cat) {
-                    btn.className = "cat-btn px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-white text-black shadow-sm border border-gray-200";
-                } else {
-                    btn.className = "cat-btn px-3 py-1.5 text-sm font-medium rounded-md transition-all text-gray-500 hover:text-black";
-                }
+                btn.className = (btn.innerText === cat)
+                    ? "cat-btn px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-white text-black shadow-sm border border-gray-200"
+                    : "cat-btn px-3 py-1.5 text-sm font-medium rounded-md transition-all text-gray-500 hover:text-black";
             });
             renderList();
         }
@@ -384,6 +393,9 @@
                 records[index].status = newStatus;
                 localStorage.setItem("records", JSON.stringify(records));
                 renderList();
+                
+                // 同步至 Sheet
+                syncToSheet({ action: "update", id: id, changes: { status: newStatus } });
             }
         }
 
@@ -393,13 +405,30 @@
                 records = records.filter(r => r.id !== id);
                 localStorage.setItem("records", JSON.stringify(records));
                 renderList();
+                
+                // 同步至 Sheet
+                syncToSheet({ action: "delete", id: id });
             }
         }
 
         // Initialize display
-        window.onload = () => {
+        window.onload = async () => {
             renderList();
             lucide.createIcons();
+            
+            // 選填：如果想要打開網頁時自動從 Sheet 同步最新資料到 localStorage
+            if (APPS_SCRIPT_URL && !APPS_SCRIPT_URL.includes("PASTE_YOUR")) {
+                try {
+                    const response = await fetch(APPS_SCRIPT_URL);
+                    const cloudData = await response.json();
+                    if (Array.isArray(cloudData)) {
+                        localStorage.setItem("records", JSON.stringify(cloudData));
+                        renderList(); // 重新渲染最新資料
+                    }
+                } catch(e) {
+                    console.log("初始化同步跳過");
+                }
+            }
         };
 
         // Close modal when clicking outside
