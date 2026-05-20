@@ -3,439 +3,190 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>二手交換物品 - Google Sheet 版</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <title>AI Data Manager</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Geist:wght@100;300;400;500;600;700;800;900&display=swap');
-        
-        :root {
-            --primary: #1A1A1A;
-            --background: #F8F9FA;
-        }
-
-        body {
-            font-family: 'Geist', sans-serif;
-            background-color: var(--background);
-            color: var(--primary);
-        }
-
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 50;
-            backdrop-filter: blur(4px);
-        }
-
-        .modal-content {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            padding: 2rem;
-            border-radius: 1rem;
-            width: 90%;
-            max-width: 500px;
-            z-index: 60;
-        }
-
-        .chip-active {
-            background-color: white;
-            color: #1A1A1A;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-            border: 1px solid #E5E7EB;
-        }
-
-        .badge-active {
-            background-color: #EBF7EE;
-            color: #16A34A;
-        }
-
-        .badge-done {
-            background-color: #F3F4F6;
-            color: #6B7280;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; background-color: #f9f9f9; }
+        .form-box { display: flex; gap: 10px; margin-bottom: 20px; }
+        input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; }
+        button { padding: 10px 16px; background-color: #007aff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; }
+        button:hover { background-color: #0056b3; }
+        #aiBtn { background-color: #34c759; margin-bottom: 20px; width: 100%; }
+        #aiBtn:hover { background-color: #28a745; }
+        .summary-box { background: #fff; padding: 15px; border-radius: 8px; border-left: 4px solid #34c759; margin-bottom: 20px; font-style: italic; display: none; }
+        .card { background: white; padding: 15px; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
+        .like-btn { background: #f2f2f7; color: #333; border: none; padding: 6px 12px; border-radius: 20px; cursor: pointer; }
+        .like-btn.liked { background: #ff3b30; color: white; }
     </style>
 </head>
-<body class="min-h-screen">
+<body>
 
-    <nav class="bg-white border-b border-gray-100 sticky top-0 z-40">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16 items-center">
-                <div class="flex items-center gap-8">
-                    <div class="flex items-center gap-2">
-                        <div class="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-                            <i data-lucide="refresh-cw" class="text-white w-5 h-5"></i>
-                        </div>
-                        <span class="text-lg font-bold tracking-tight">二手交換</span>
-                    </div>
-                    
-                    <div class="hidden md:flex items-center gap-1 bg-gray-50 p-1 rounded-lg border border-gray-200" id="categoryGroup">
-                        <button onclick="setCategory('全部')" class="cat-btn px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-white text-black shadow-sm border border-gray-200">全部</button>
-                        <button onclick="setCategory('運動用品')" class="cat-btn px-3 py-1.5 text-sm font-medium rounded-md transition-all text-gray-500 hover:text-black">運動用品</button>
-                        <button onclick="setCategory('文具')" class="cat-btn px-3 py-1.5 text-sm font-medium rounded-md transition-all text-gray-500 hover:text-black">文具</button>
-                        <button onclick="setCategory('生活')" class="cat-btn px-3 py-1.5 text-sm font-medium rounded-md transition-all text-gray-500 hover:text-black">生活</button>
-                        <button onclick="setCategory('其他')" class="cat-btn px-3 py-1.5 text-sm font-medium rounded-md transition-all text-gray-500 hover:text-black">其他</button>
-                    </div>
-                </div>
+    <h2>AI 數據管理面板</h2>
+    
+    <form id="dataForm" class="form-box">
+        <input type="text" id="contentInput" placeholder="輸入新紀錄內容..." required />
+        <button type="submit">新增</button>
+    </form>
 
-                <div class="flex items-center gap-4">
-                    <div class="relative hidden sm:block">
-                        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"></i>
-                        <input type="text" id="searchInput" oninput="renderList()" placeholder="搜尋物品..." class="pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-black/5 w-64">
-                    </div>
-                    <div class="flex items-center gap-2">
-                         <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
-                             <i data-lucide="user" class="w-4 h-4 text-gray-500"></i>
-                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </nav>
+    <button id="aiBtn">✨ 生成 AI 摘要總結</button>
+    <div id="aiSummaryResult" class="summary-box"></div>
 
-    <main class="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <div class="mb-8 p-6 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div class="flex items-center gap-8">
-                <div class="flex flex-col">
-                    <span class="text-gray-500 text-sm font-medium">Active</span>
-                    <span id="statActive" class="text-2xl font-bold text-black">0</span>
-                </div>
-                <div class="w-px h-8 bg-gray-200"></div>
-                <div class="flex flex-col">
-                    <span class="text-gray-500 text-sm font-medium">Done</span>
-                    <span id="statDone" class="text-2xl font-bold text-gray-700">0</span>
-                </div>
-                <div class="w-px h-8 bg-gray-200"></div>
-                <div class="flex flex-col">
-                    <span class="text-gray-500 text-sm font-medium">Total</span>
-                    <span id="statTotal" class="text-2xl font-bold text-gray-900">0</span>
-                </div>
-            </div>
+    <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
 
-            <div class="flex items-center bg-gray-50 p-1.5 rounded-xl border border-gray-200" id="statusFilterGroup">
-                <button onclick="setStatusFilter('全部')" class="status-btn px-4 py-1.5 rounded-lg text-sm font-medium transition-all bg-white text-black shadow-sm ring-1 ring-gray-200">全部</button>
-                <button onclick="setStatusFilter('active')" class="status-btn px-4 py-1.5 rounded-lg text-sm font-medium transition-all text-gray-500 hover:text-gray-700">只看 Active</button>
-                <button onclick="setStatusFilter('done')" class="status-btn px-4 py-1.5 rounded-lg text-sm font-medium transition-all text-gray-500 hover:text-gray-700">只看 Done</button>
-            </div>
-        </div>
-
-        <div class="flex justify-between items-center mb-8">
-            <h1 id="listTitle" class="text-3xl font-bold tracking-tight text-gray-900">所有物品</h1>
-            <button onclick="openModal()" class="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg font-medium shadow-lg shadow-black/10 hover:bg-gray-800 transition-colors">
-                <i data-lucide="plus" class="w-4 h-4"></i>
-                發佈物品
-            </button>
-        </div>
-
-        <div id="itemsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            </div>
-
-        <div id="emptyState" class="hidden flex flex-col items-center justify-center h-64 text-gray-400">
-            <i data-lucide="package-search" class="w-12 h-12 mb-4"></i>
-            <p>沒有找到相關物品</p>
-        </div>
-    </main>
-
-    <div id="postModal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-bold">發佈二手交換物品</h2>
-                <button onclick="closeModal()" class="text-gray-400 hover:text-black">
-                    <i data-lucide="x" class="w-6 h-6"></i>
-                </button>
-            </div>
-            <form id="postForm" onsubmit="handlePost(event)" class="space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">物品名稱</label>
-                        <input type="text" name="title" required placeholder="例如：九成新運動鞋" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5">
-                    </div>
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">價格 (MOP)</label>
-                        <input type="number" name="price" required min="0" placeholder="0" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5">
-                    </div>
-                </div>
-
-                <div class="space-y-2">
-                    <label class="text-sm font-medium">分類</label>
-                    <select name="category" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5">
-                        <option value="運動用品">運動用品</option>
-                        <option value="文具">文具</option>
-                        <option value="生活">生活</option>
-                        <option value="其他">其他</option>
-                    </select>
-                </div>
-
-                <div class="space-y-2">
-                    <label class="text-sm font-medium">描述</label>
-                    <textarea name="description" required placeholder="請描述物品狀況、交換意向等..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5 min-h-[100px]"></textarea>
-                </div>
-
-                <div class="space-y-2">
-                    <label class="text-sm font-medium">圖片連結 (選填)</label>
-                    <input type="url" name="imageUrl" placeholder="https://example.com/image.jpg" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black/5">
-                </div>
-
-                <button type="submit" class="w-full bg-black text-white py-2.5 rounded-lg font-medium hover:bg-gray-800 transition-colors mt-4">
-                    立即發佈
-                </button>
-            </form>
-        </div>
-    </div>
+    <div id="listContainer">正在載入最新數據...</div>
 
     <script>
-        // --- Configuration ---
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwxsA7XBVc0clF3rKxSG7upHXY3gjTG7VG6hVRPbzyrQwtCvzx_dLBo7X7bz9QhSadF/exec"; // 請在此貼上部署後的 URL
+        // APPS_SCRIPT_URL 個 URL 同舊版完全一樣，請在此處替換成你實際的 Web App URL
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzXXXXXXXXXXXXX/exec";
+        
+        // 本地數據緩存，用作防止即時更新被舊 Remote 數據洗走
+        let localRecords = [];
 
-        // Global State
-        let currentStatusFilter = '全部';
-        let currentCategory = '全部';
+        // 頁面初始化載入
+        window.addEventListener('DOMContentLoaded', async () => {
+            // 【處處 1】初始化時載入
+            await loadData();
+            
+            // 綁定 aiBtn 事件
+            const aiBtn = document.getElementById('aiBtn');
+            aiBtn.addEventListener('click', handleAISummary);
+        });
 
-        // --- Core Functions ---
-
-        /**
-         * 同步資料到 Google Sheet 的 Helper
-         */
-        async function syncToSheet(payload) {
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("PASTE_YOUR")) {
-                console.warn("Apps Script URL 未設定，僅同步至 localStorage");
-                return;
-            }
+        // 核心載入函式：async function loadData
+        async function loadData() {
             try {
-                // 使用 text/plain 以避免 CORS preflight 問題 (Google Apps Script 特性)
-                await fetch(APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors', 
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify(payload)
-                });
-            } catch (err) {
-                console.warn("Google Sheet 同步失敗:", err);
-            }
-        }
-
-        /**
-         * 保存數據
-         */
-        function saveData(newRecord) {
-            const records = loadData();
-            records.unshift(newRecord);
-            localStorage.setItem("records", JSON.stringify(records));
-            
-            // 同步到 Sheet
-            syncToSheet({ action: "create", record: newRecord });
-        }
-
-        /**
-         * 加載數據 (從 localStorage 作為 Backup)
-         */
-        function loadData() {
-            const data = localStorage.getItem("records");
-            return data ? JSON.parse(data) : [];
-        }
-
-        /**
-         * 渲染列表
-         */
-        function renderList() {
-            const allRecords = loadData();
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-            const grid = document.getElementById('itemsGrid');
-            const emptyState = document.getElementById('emptyState');
-
-            const filtered = allRecords.filter(item => {
-                const statusMatch = currentStatusFilter === '全部' || item.status === currentStatusFilter;
-                const categoryMatch = currentCategory === '全部' || item.category === currentCategory;
-                const searchMatch = item.title.toLowerCase().includes(searchTerm) || 
-                                    item.description.toLowerCase().includes(searchTerm);
-                return statusMatch && categoryMatch && searchMatch;
-            });
-
-            document.getElementById('statActive').innerText = allRecords.filter(r => r.status === 'active').length;
-            document.getElementById('statDone').innerText = allRecords.filter(r => r.status === 'done').length;
-            document.getElementById('statTotal').innerText = allRecords.length;
-
-            grid.innerHTML = '';
-            if (filtered.length === 0) {
-                emptyState.classList.remove('hidden');
-                return;
-            } else {
-                emptyState.classList.add('hidden');
-            }
-
-            filtered.forEach(item => {
-                const statusBadge = item.status === 'active' 
-                    ? '<span class="bg-[#EBF7EE] text-[#16A34A] text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Active</span>'
-                    : '<span class="bg-[#F3F4F6] text-[#6B7280] text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Done</span>';
-
-                const cardHTML = `
-                    <div class="group bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-xl hover:shadow-gray-200/50 transition-all duration-300 flex flex-col h-full">
-                        <div class="relative h-48 overflow-hidden bg-gray-50">
-                            ${item.imageUrl 
-                                ? `<img src="${item.imageUrl}" alt="${item.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">`
-                                : `<div class="w-full h-full flex items-center justify-center text-gray-300"><i data-lucide="image" class="w-12 h-12"></i></div>`
-                            }
-                            <div class="absolute top-3 right-3">
-                                ${statusBadge}
-                            </div>
-                        </div>
-                        
-                        <div class="p-5 flex flex-col flex-1">
-                            <div class="flex justify-between items-start mb-2">
-                                <h3 class="font-bold text-gray-900 group-hover:text-black transition-colors line-clamp-1">${item.title}</h3>
-                                <span class="bg-gray-100 text-gray-500 text-[10px] font-medium px-2 py-0.5 rounded-md">${item.category}</span>
-                            </div>
-                            <p class="text-gray-500 text-sm line-clamp-2 mb-4 h-10">${item.description}</p>
-                            <div class="flex items-center justify-between mb-4">
-                                <span class="text-lg font-bold text-black">MOP ${item.price}</span>
-                                <div class="flex gap-1">
-                                    ${item.status === 'active' ? `
-                                        <button onclick="toggleStatus('${item.id}', 'done')" class="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all" title="標記為完成">
-                                            <i data-lucide="check-circle-2" class="w-4 h-4"></i>
-                                        </button>
-                                    ` : `
-                                        <button onclick="toggleStatus('${item.id}', 'active')" class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="恢復">
-                                            <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
-                                        </button>
-                                    `}
-                                    <button onclick="deleteRecord('${item.id}')" class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="刪除">
-                                        <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div class="mt-auto pt-4 border-t border-gray-50 flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <div class="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
-                                        <i data-lucide="user" class="w-3 h-3 text-gray-400"></i>
-                                    </div>
-                                    <span class="text-[10px] text-gray-400">${new Date(item.createdAt).toLocaleDateString()}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                grid.innerHTML += cardHTML;
-            });
-
-            lucide.createIcons();
-        }
-
-        // --- Helper Logic ---
-
-        function openModal() {
-            document.getElementById('postModal').style.display = 'block';
-        }
-
-        function closeModal() {
-            document.getElementById('postModal').style.display = 'none';
-            document.getElementById('postForm').reset();
-        }
-
-        function handlePost(e) {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            
-            const newRecord = {
-                id: Date.now() + "_" + Math.random().toString(36).slice(2,6),
-                createdAt: new Date().toISOString(),
-                title: formData.get('title'),
-                description: formData.get('description'),
-                category: formData.get('category'),
-                price: parseFloat(formData.get('price')),
-                imageUrl: formData.get('imageUrl'),
-                status: "active" 
-            };
-
-            saveData(newRecord);
-            closeModal();
-            renderList();
-        }
-
-        function setStatusFilter(status) {
-            currentStatusFilter = status;
-            const buttons = document.querySelectorAll('#statusFilterGroup button');
-            buttons.forEach(btn => {
-                const isActive = (status === '全部' && btn.innerText === '全部') || 
-                                 (status === 'active' && btn.innerText.includes('Active')) || 
-                                 (status === 'done' && btn.innerText.includes('Done'));
+                const response = await fetch(APPS_SCRIPT_URL);
+                const data = await response.json();
                 
-                btn.className = isActive 
-                    ? "status-btn px-4 py-1.5 rounded-lg text-sm font-medium transition-all bg-white text-black shadow-sm ring-1 ring-gray-200"
-                    : "status-btn px-4 py-1.5 rounded-lg text-sm font-medium transition-all text-gray-500 hover:text-gray-700";
-            });
-            renderList();
-        }
-
-        function setCategory(cat) {
-            currentCategory = cat;
-            document.getElementById('listTitle').innerText = cat === '全部' ? '所有物品' : cat;
-            const buttons = document.querySelectorAll('#categoryGroup button');
-            buttons.forEach(btn => {
-                btn.className = (btn.innerText === cat)
-                    ? "cat-btn px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-white text-black shadow-sm border border-gray-200"
-                    : "cat-btn px-3 py-1.5 text-sm font-medium rounded-md transition-all text-gray-500 hover:text-black";
-            });
-            renderList();
-        }
-
-        function toggleStatus(id, newStatus) {
-            const records = loadData();
-            const index = records.findIndex(r => r.id === id);
-            if (index !== -1) {
-                records[index].status = newStatus;
-                localStorage.setItem("records", JSON.stringify(records));
-                renderList();
+                // 使用 normalizeRecord 處理每一條紀錄，解決 Sheet header 大細階 mismatch
+                localRecords = data.map(record => normalizeRecord(record));
                 
-                // 同步至 Sheet
-                syncToSheet({ action: "update", id: id, changes: { status: newStatus } });
+                // 渲染至畫面
+                renderList(localRecords);
+            } catch (error) {
+                console.error("載入 Remote 數據失敗:", error);
             }
         }
 
-        function deleteRecord(id) {
-            if (confirm('確定要刪除此物品嗎？')) {
-                let records = loadData();
-                records = records.filter(r => r.id !== id);
-                localStorage.setItem("records", JSON.stringify(records));
-                renderList();
-                
-                // 同步至 Sheet
-                syncToSheet({ action: "delete", id: id });
-            }
-        }
-
-        // Initialize display
-        window.onload = async () => {
-            renderList();
-            lucide.createIcons();
-            
-            // 選填：如果想要打開網頁時自動從 Sheet 同步最新資料到 localStorage
-            if (APPS_SCRIPT_URL && !APPS_SCRIPT_URL.includes("PASTE_YOUR")) {
-                try {
-                    const response = await fetch(APPS_SCRIPT_URL);
-                    const cloudData = await response.json();
-                    if (Array.isArray(cloudData)) {
-                        localStorage.setItem("records", JSON.stringify(cloudData));
-                        renderList(); // 重新渲染最新資料
-                    }
-                } catch(e) {
-                    console.log("初始化同步跳過");
+        // 欄位標準化：normalizeRecord
+        function normalizeRecord(rawRecord) {
+            const normalized = {};
+            for (const key in rawRecord) {
+                if (Object.prototype.hasOwnProperty.call(rawRecord, key)) {
+                    // 將全部 Key 轉為小寫並消除前後空白，完美防禦大小寫錯配
+                    normalized[key.toLowerCase().trim()] = rawRecord[key];
                 }
             }
-        };
+            return normalized;
+        }
 
-        // Close modal when clicking outside
-        window.onclick = function(event) {
-            const modal = document.getElementById('postModal');
-            if (event.target == modal) {
-                closeModal();
+        // 渲染列表：renderList(records)
+        function renderList(records) {
+            const container = document.getElementById('listContainer');
+            if (!records || records.length === 0) {
+                container.innerHTML = '<p style="color: #666;">暫無紀錄</p>';
+                return;
+            }
+            
+            container.innerHTML = records.map(item => {
+                const content = item.content || item.text || '（無內容）';
+                const id = item.id;
+                const likes = item.likes || 0;
+                const isLiked = item.liked === true || item.liked === "true";
+                
+                return `
+                    <div class="card">
+                        <div>${content}</div>
+                        <button class="like-btn ${isLiked ? 'liked' : ''}" onclick="handleLike('${id}')">
+                            ${isLiked ? '❤️ 已讚' : '🤍 點讚'} (${likes})
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 表單提交：新增紀錄
+        document.getElementById('dataForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('contentInput');
+            const contentText = input.value.trim();
+            if (!contentText) return;
+
+            // 樂觀 UI 機制：產生臨時本地紀錄即時推入，令新增/like 後唔會即刻畀舊 remote 洗走
+            const tempId = "temp_" + Date.now();
+            const newRecord = { id: tempId, content: contentText, liked: false, likes: 0 };
+            
+            localRecords.push(newRecord);
+            renderList(localRecords); // 即時更新畫面
+            input.value = ''; // 清空輸入欄
+
+            try {
+                await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    cache: 'no-cache',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ method: 'insert', content: contentText })
+                });
+                // 【處處 2】新增成功後，背後靜默刷新
+                await loadData();
+            } catch (error) {
+                console.error("提交失敗:", error);
+                // 【處處 3】發生異常時重新同步，確保狀態回滾正確
+                await loadData();
+            }
+        });
+
+        // 點讚交互處理
+        async function handleLike(id) {
+            // 樂觀 UI 機制：直接修改本地狀態，用 renderList(records) 即時更新
+            localRecords = localRecords.map(item => {
+                if (item.id === id) {
+                    const currentStatus = !(item.liked === true || item.liked === "true");
+                    const currentLikes = Number(item.likes || 0);
+                    return {
+                        ...item,
+                        liked: currentStatus,
+                        likes: currentStatus ? currentLikes + 1 : Math.max(0, currentLikes - 1)
+                    };
+                }
+                return item;
+            });
+            
+            // 即時渲染，唔會出現遲鈍或者俾舊數據覆蓋嘅問題
+            renderList(localRecords);
+
+            try {
+                await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    cache: 'no-cache',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ method: 'toggle_like', id: id })
+                });
+                // 【處處 4】非同步點讚完成後，再次拉取最新狀態
+                await loadData();
+            } catch (error) {
+                console.error("點讚請求失敗:", error);
+            }
+        }
+
+        // AI 總結按鈕處理：handleAISummary
+        async function handleAISummary() {
+            const resultDiv = document.getElementById('aiSummaryResult');
+            resultDiv.style.display = 'block';
+            resultDiv.innerText = "🤖 AI 正在閱讀數據並生成摘要，請稍候...";
+            
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ method: 'get_ai_summary' })
+                });
+                const resData = await response.json();
+                resultDiv.innerText = resData.summary || "未有成功生成摘要。";
+            } catch (error) {
+                resultDiv.innerText = "❌ 生成摘要時發生錯誤，請檢查後台日誌。";
+                console.error(error);
             }
         }
     </script>
