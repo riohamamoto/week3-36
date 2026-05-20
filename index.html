@@ -198,7 +198,7 @@
 
     <script>
         // --- Configuration ---
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwxsA7XBVc0clF3rKxSG7upHXY3gjTG7VG6hVRPbzyrQwtCvzx_dLBo7X7bz9QhSadF/exec"; 
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwJrBsnoZlYOLoHlXGjbbQEJfrF8hAIKIth1xbuTumwvEI3bPXlkrfBd9u_duE0qPI7/exec"; 
 
         // Global State
         let currentStatusFilter = '全部';
@@ -211,7 +211,7 @@
          * 同步資料到 Google Sheet 的 Helper
          */
         async function syncToSheet(payload) {
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("PASTE_YOUR")) {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbwJrBsnoZlYOLoHlXGjbbQEJfrF8hAIKIth1xbuTumwvEI3bPXlkrfBd9u_duE0qPI7/exec")) {
                 console.warn("Apps Script URL 未設定，僅同步至 localStorage");
                 return;
             }
