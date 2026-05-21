@@ -1,548 +1,680 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>校園二手市集 Campus Marketplace</title>
+    <title>校園二手交換物品 - 智聯升級版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
+    
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Geist:wght@100;300;400;500;600;700;800;900&display=swap');
+        
         :root {
-            --primary-color: #4285f4;
-            --accent-color: #34a853;
-            --danger-color: #ea4335;
-            --gray-light: #f8f9fa;
-            --border-color: #dee2e6;
+            --primary: #4F46E5;
+            --background: #F8FAFC;
         }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f4f6f9;
-            color: #333;
+            font-family: 'Geist', sans-serif;
+            background-color: var(--background);
         }
-        header {
-            background-color: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            padding: 15px 5%;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: sticky;
-            top: 0;
-            z-index: 100;
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            z-index: 50;
+            backdrop-filter: blur(8px);
         }
-        .logo { font-size: 24px; font-weight: bold; color: var(--primary-color); }
-        .nav-tabs { display: flex; gap: 15px; }
-        .nav-btn { background: none; border: none; padding: 10px 15px; font-size: 16px; cursor: pointer; border-bottom: 3px solid transparent; }
-        .nav-btn.active { border-bottom-color: var(--primary-color); color: var(--primary-color); font-weight: bold; }
-        .user-profile { display: flex; align-items: center; gap: 10px; }
-        .avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary-color); }
-        
-        .container { max-width: 1200px; margin: 3px auto; padding: 20px; display: none; }
-        .container.active { display: block; }
-        
-        /* 表單樣式 */
-        .publish-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 3px; }
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
-        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; }
-        .btn { background-color: var(--primary-color); color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 16px; }
-        .btn:hover { opacity: 0.9; }
 
-        /* 分類篩選 */
-        .filter-bar { display: flex; gap: 10px; margin-bottom: 20px; }
-        .filter-btn { background: white; border: 1px solid var(--border-color); padding: 8px 15px; border-radius: 20px; cursor: pointer; }
-        .filter-btn.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
-
-        /* 物品卡片市集 */
-        .market-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
-        .item-card { background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid var(--border-color); display: flex; flex-direction: column; position: relative; }
-        .item-img { width: 100%; height: 200px; object-fit: cover; background-color: #eee; }
-        .item-info { padding: 15px; flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; }
-        .item-title { font-size: 18px; font-weight: bold; margin: 0 0 10px 0; }
-        .item-price { color: var(--danger-color); font-size: 20px; font-weight: bold; margin-bottom: 10px; }
-        .item-publisher { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #666; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--gray-light); }
-        .item-publisher .pub-avatar { width: 24px; height: 24px; border-radius: 50%; }
-        
-        /* 狀態標籤 */
-        .status-badge { position: absolute; top: 10px; right: 10px; padding: 5px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; color: white; }
-        .status-selling { background-color: var(--accent-color); }
-        .status-sold { background-color: #6c757d; }
-
-        /* 卡片按鈕 */
-        .card-action-btn { width: 100%; padding: 10px; border: none; margin-top: 10px; border-radius: 4px; font-size: 14px; font-weight: bold; cursor: pointer; }
-        .btn-contact { background-color: var(--primary-color); color: white; }
-        .btn-sold { background-color: var(--danger-color); color: white; }
-        .btn-disabled { background-color: #e9ecef; color: #6c757d; cursor: not-allowed; }
-
-        /* 浮動聊天室 */
-        .chat-window { position: fixed; bottom: 20px; right: 20px; width: 320px; height: 400px; background: white; border-radius: 8px 8px 0 0; box-shadow: 0 5px 15px rgba(0,0,0,0.2); display: none; flex-direction: column; border: 1px solid var(--border-color); z-index: 1000; }
-        .chat-header { background: var(--primary-color); color: white; padding: 12px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; border-radius: 8px 8px 0 0; }
-        .chat-close { background: none; border: none; color: white; font-size: 20px; cursor: pointer; }
-        .chat-messages { flex-grow: 1; padding: 10px; overflow-y: auto; background: var(--gray-light); display: flex; flex-direction: column; gap: 8px; }
-        .msg { max-width: 80%; padding: 8px 12px; border-radius: 15px; font-size: 14px; word-break: break-all; }
-        .msg.received { background: white; align-self: flex-start; border: 1px solid var(--border-color); }
-        .msg.sent { background: var(--primary-color); color: white; align-self: flex-end; }
-        .chat-input-area { display: flex; padding: 10px; border-top: 1px solid var(--border-color); background: white; }
-        .chat-input { flex-grow: 1; border: 1px solid var(--border-color); padding: 8px; border-radius: 4px; outline: none; }
-        .chat-send { background: var(--primary-color); color: white; border: none; padding: 0 15px; margin-left: 5px; border-radius: 4px; cursor: pointer; }
-        
-        /* 未登入阻擋遮罩 */
-        .login-placeholder { text-align: center; padding: 50px 20px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        /* 隱藏滾動條但保持功能 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
-<body>
+<body class="min-h-screen text-slate-800 relative overflow-x-hidden">
 
-    <header>
-        <div class="logo">校園二手市集 🏫</div>
-        <div class="nav-tabs" id="navTabs" style="display: none;">
-            <button class="nav-btn active" onclick="switchTab('tab-market')">瀏覽市集</button>
-            <button class="nav-btn" onclick="switchTab('tab-publish')">發佈物品</button>
-            <button class="nav-btn" onclick="switchTab('tab-dashboard')">我的主頁/聊天</button>
-        </div>
-        <div class="user-profile">
-            <div id="g_id_onload"
-                 data-client_id="312510971650-bnu0cdaichv72tqq5ttuqb2cjc6c8ald.apps.googleusercontent.com"
-                 data-callback="handleCredentialResponse"
-                 data-auto_prompt="false">
-            </div>
-            <div class="g_id_signin" data-type="standard"></div>
-            <div id="userInfo" style="display: none; align-items: center; gap: 10px;">
-                <img id="userAvatar" class="avatar" src="" alt="User Avatar">
-                <span id="userName" style="font-weight: bold;"></span>
-                <button onclick="logout()" style="font-size: 12px; cursor: pointer;">登出</button>
-            </div>
-        </div>
-    </header>
+    <div class="absolute top-0 left-1/4 w-96 h-96 bg-indigo-200/40 rounded-full blur-3xl -z-10"></div>
+    <div class="absolute top-80 right-10 w-80 h-80 bg-purple-200/30 rounded-full blur-3xl -z-10"></div>
 
-    <div id="loginPrompt" class="container active" style="margin-top: 50px;">
-        <div class="login-placeholder">
-            <h2>歡迎來到校園二手市集！👋</h2>
-            <p>請先使用右上角的 Google 帳號進行登入，即可解鎖瀏覽物品、發佈商品以及與賣家聊天的功能。</p>
+    <nav class="bg-white/80 backdrop-blur-md border-b border-slate-100 sticky top-0 z-40 transition-all">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-6">
+                    <div class="flex items-center gap-2.5 group">
+                        <div class="w-9 h-9 bg-gradient-to-tr from-indigo-600 to-violet-500 rounded-xl flex items-center justify-center shadow-md shadow-indigo-200 group-hover:rotate-12 transition-transform">
+                            <i data-lucide="refresh-cw" class="text-white w-5 h-5 animate-pulse"></i>
+                        </div>
+                        <span class="text-xl font-extrabold bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent tracking-tight">校園二手市集</span>
+                    </div>
+                    
+                    <div class="hidden lg:flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/60" id="categoryGroup">
+                        <button onclick="setCategory('全部')" class="cat-btn px-4 py-1.5 text-sm font-semibold rounded-lg transition-all bg-white text-indigo-600 shadow-sm">全部</button>
+                        <button onclick="setCategory('運動用品')" class="cat-btn px-4 py-1.5 text-sm font-medium rounded-lg transition-all text-slate-600 hover:text-slate-900">運動用品</button>
+                        <button onclick="setCategory('文具')" class="cat-btn px-4 py-1.5 text-sm font-medium rounded-lg transition-all text-slate-600 hover:text-slate-900">文具</button>
+                        <button onclick="setCategory('生活')" class="cat-btn px-4 py-1.5 text-sm font-medium rounded-lg transition-all text-slate-600 hover:text-slate-900">生活</button>
+                        <button onclick="setCategory('其他')" class="cat-btn px-4 py-1.5 text-sm font-medium rounded-lg transition-all text-slate-600 hover:text-slate-900">其他</button>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <div class="relative hidden sm:block">
+                        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+                        <input type="text" id="searchInput" oninput="renderList(localRecords)" placeholder="搜尋好物..." class="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 w-60 transition-all">
+                    </div>
+                    
+                    <div id="googleAuthSection" class="flex items-center gap-3">
+                        <div id="g_id_onload"
+                             data-client_id="YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
+                             data-callback="handleCredentialResponse"
+                             data-auto_prompt="false">
+                        </div>
+                        <div class="g_id_signin" data-type="standard" data-size="medium" data-theme="outline" data-text="signin_with" data-shape="pill"></div>
+                    </div>
+
+                    <div id="userProfileSection" class="hidden flex items-center gap-3 bg-slate-50 p-1.5 pr-3 rounded-full border border-slate-200">
+                        <img id="userAvatar" src="" alt="Avatar" class="w-7 h-7 rounded-full object-cover shadow-sm">
+                        <span id="userName" class="text-xs font-bold text-slate-700 max-w-[80px] truncate"></span>
+                        <button onclick="handleLogout()" class="text-slate-400 hover:text-red-500 transition-colors" title="登出">
+                            <i data-lucide="log-out" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div id="introBanner" class="bg-gradient-to-r from-indigo-900 via-indigo-800 to-violet-900 text-white py-12 px-4 shadow-inner relative overflow-hidden">
+        <div class="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+        <div class="max-w-4xl mx-auto text-center relative z-10 space-y-4">
+            <span class="bg-indigo-500/30 text-indigo-200 text-xs font-bold px-3 py-1 rounded-full border border-indigo-400/20 uppercase tracking-widest">Campus Sharing</span>
+            <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight">讓校園閒置物品，找到新主人</h2>
+            <p class="text-indigo-200 max-w-xl mx-auto text-sm sm:text-base font-light">
+                這是一個專屬於同學們的綠色交換平臺。無論是功成身退的教科書、用不上的運動器材，還是生活萌物，都能在這裡煥發新生。立即登入解鎖發佈權限！
+            </p>
+            <div class="pt-2 flex justify-center gap-6 text-xs sm:text-sm text-indigo-200/90 font-medium">
+                <span class="flex items-center gap-1.5"><i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i> 校園電郵認證</span>
+                <span class="flex items-center gap-1.5"><i data-lucide="leaf" class="w-4 h-4 text-emerald-400"></i> 環保永續循環</span>
+                <span class="flex items-center gap-1.5"><i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i> AI 智能物價分析</span>
+            </div>
         </div>
     </div>
 
-    <div id="tab-market" class="container">
-        <div class="filter-bar">
-            <button class="filter-btn active" onclick="filterCategory('全部', this)">全部</button>
-            <button class="filter-btn" onclick="filterCategory('教科書', this)">教科書</button>
-            <button class="filter-btn" onclick="filterCategory('電子產品', this)">電子產品</button>
-            <button class="filter-btn" onclick="filterCategory('生活用品', this)">生活用品</button>
-        </div>
-        <div class="market-grid" id="marketGrid">
+    <main class="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        
+        <div class="mb-8 p-6 bg-white/70 backdrop-blur-md rounded-2xl shadow-sm border border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div class="flex items-center gap-6 sm:gap-10 overflow-x-auto no-scrollbar">
+                <div class="flex flex-col min-w-[70px]">
+                    <span class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Active 刊登中</span>
+                    <span id="statActive" class="text-3xl font-black text-indigo-600">0</span>
+                </div>
+                <div class="w-px h-10 bg-slate-200"></div>
+                <div class="flex flex-col min-w-[70px]">
+                    <span class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Done 已成交</span>
+                    <span id="statDone" class="text-3xl font-black text-slate-500">0</span>
+                </div>
+                <div class="w-px h-10 bg-slate-200"></div>
+                <div class="flex flex-col min-w-[70px]">
+                    <span class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Total 總總數</span>
+                    <span id="statTotal" class="text-3xl font-black text-slate-800">0</span>
+                </div>
             </div>
-    </div>
 
-    <div id="tab-publish" class="container">
-        <div class="publish-card">
-            <h3>📢 發佈二手寶物</h3>
-            <form id="publishForm" onsubmit="publishItem(event)">
-                <div class="form-group">
-                    <label>物品名稱</label>
-                    <input type="text" id="pTitle" required placeholder="例如：經濟學原理（九成新）">
-                </div>
-                <div class="form-group">
-                    <label>預售價格 (TWD)</label>
-                    <input type="number" id="pPrice" required placeholder="例如：350">
-                </div>
-                <div class="form-group">
-                    <label>物品分類</label>
-                    <select id="pCategory">
-                        <option value="教科書">教科書</option>
-                        <option value="電子產品">電子產品</option>
-                        <option value="生活用品">生活用品</option>
+            <div class="flex flex-wrap items-center gap-3">
+                <div class="relative bg-slate-100 rounded-xl px-3 py-1.5 border border-slate-200/60 flex items-center gap-1.5">
+                    <i data-lucide="arrow-up-down" class="w-3.5 h-3.5 text-slate-500"></i>
+                    <select id="sortSelect" onchange="renderList(localRecords)" class="bg-transparent text-xs font-bold text-slate-600 focus:outline-none cursor-pointer">
+                        <option value="newest">最新上架</option>
+                        <option value="priceLow">價格：低到高</option>
+                        <option value="priceHigh">價格：高到低</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label>圖片網址 (可留空，系統會帶入預設圖)</label>
-                    <input type="url" id="pImg" placeholder="https://example.com/image.jpg">
+
+                <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/60" id="statusFilterGroup">
+                    <button onclick="setStatusFilter('全部')" class="status-btn px-4 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-500 hover:text-slate-800">全部</button>
+                    <button onclick="setStatusFilter('active')" class="status-btn px-4 py-1.5 rounded-lg text-xs font-semibold transition-all bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200">只看 Active</button>
+                    <button onclick="setStatusFilter('done')" class="status-btn px-4 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-500 hover:text-slate-800">只看 Done</button>
                 </div>
-                <div class="form-group">
-                    <label>物品簡介</label>
-                    <textarea id="pDesc" rows="4" required placeholder="請描述物品狀況、面交地點等..."></textarea>
+            </div>
+        </div>
+
+        <div class="flex justify-between items-center mb-6">
+            <div class="flex items-center gap-3">
+                <h1 id="listTitle" class="text-2xl font-black tracking-tight text-slate-900">刊登中寶物</h1>
+                <span id="wishlistCountBadge" class="hidden items-center gap-1 bg-rose-50 text-rose-600 text-xs font-bold px-2.5 py-1 rounded-full border border-rose-100"><i data-lucide="heart" class="w-3 h-3 fill-rose-600"></i> 收藏夾已啟用</span>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <button onclick="handleAISummary()" id="aiBtn" class="flex items-center gap-2 bg-slate-900 text-slate-100 px-4 py-2 rounded-xl font-bold text-sm hover:bg-slate-800 transition-all active:scale-95 shadow-md shadow-slate-200 disabled:opacity-50">
+                    <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i>
+                    <span id="aiBtnText">AI 市集摘要</span>
+                </button>
+                
+                <button id="publishBtn" onclick="openModal()" disabled class="flex items-center gap-2 bg-slate-300 text-slate-500 cursor-not-allowed px-4 py-2 rounded-xl font-bold text-sm shadow-lg transition-all">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    請先登入平臺
+                </button>
+            </div>
+        </div>
+
+        <div id="itemsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div>
+
+        <div id="emptyState" class="hidden flex flex-col items-center justify-center h-72 text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200 p-8">
+            <div class="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mb-4 border border-slate-100">
+                <i data-lucide="package-search" class="w-8 h-8 text-slate-400"></i>
+            </div>
+            <p class="font-medium text-slate-500">空空如也，沒有找到相關物品</p>
+            <p class="text-xs text-slate-400 mt-1">換個搜尋詞或分類看看吧！</p>
+        </div>
+    </main>
+
+    <div id="postModal" class="modal-overlay">
+        <div class="max-w-2xl mx-auto mt-20 bg-white p-6 rounded-2xl shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto no-scrollbar">
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="file-plus-2" class="text-indigo-600 w-5 h-5"></i>
+                    <h2 class="text-xl font-bold text-slate-900">發佈二手交換物品</h2>
                 </div>
-                <button type="submit" class="btn">確認上架發佈</button>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-50 rounded-lg transition-all">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <form id="postForm" onsubmit="handlePost(event)" class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-bold text-slate-500">物品名稱 <span class="text-rose-500">*</span></label>
+                        <input type="text" name="title" required placeholder="例如：九成新運動鞋" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-bold text-slate-500">預估價值 (MOP) <span class="text-rose-500">*</span></label>
+                        <input type="number" name="price" required min="0" placeholder="0" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-bold text-slate-500">分類 <span class="text-rose-500">*</span></label>
+                        <select name="category" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer">
+                            <option value="運動用品">運動用品</option>
+                            <option value="文具">文具</option>
+                            <option value="生活">生活</option>
+                            <option value="其他">其他</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-bold text-slate-500">物品狀況 <span class="text-rose-500">*</span></label>
+                        <select name="condition" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer">
+                            <option value="全新">全新 (未拆封/未使用)</option>
+                            <option value="九成新">九成新 (功能完好極少瑕疵)</option>
+                            <option value="微瑕疵">微瑕疵 (有使用痕跡不影響功能)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-xs font-bold text-slate-500">聯絡資訊 (如：微訊號/電話/Email) <span class="text-rose-500">*</span></label>
+                    <input type="text" name="contact" required placeholder="請留下聯絡方式以便買家聯絡" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all">
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-xs font-bold text-slate-500">物品描述描述 <span class="text-rose-500">*</span></label>
+                    <textarea name="description" required placeholder="請詳細描述規格、可交換之意向物品等..." class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 min-h-[90px] transition-all"></textarea>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-xs font-bold text-slate-500">圖片連結 (選填)</label>
+                    <input type="url" name="imageUrl" placeholder="https://example.com/image.jpg" class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all">
+                </div>
+
+                <button type="submit" class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white py-2.5 rounded-xl font-bold hover:opacity-95 transition-all shadow-md shadow-indigo-100 mt-2">
+                    立即發佈
+                </button>
             </form>
         </div>
     </div>
 
-    <div id="tab-dashboard" class="container">
-        <h3>📦 我發佈的二手物品</h3>
-        <div class="market-grid" id="myItemsGrid" style="margin-bottom: 40px;"></div>
-        
-        <h3>💬 我的聊天歷史訊息</h3>
-        <div id="chatHistoryList" style="background:white; padding:15px; border-radius:8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+    <div id="chatModal" class="modal-overlay">
+        <div class="max-w-md mx-auto mt-20 bg-white rounded-2xl shadow-2xl border border-slate-100 flex flex-col h-[500px]">
+            <div class="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50 rounded-t-2xl">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+                        <i data-lucide="message-circle" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-sm" id="chatTitle">聊天室</h3>
+                        <p class="text-xs text-slate-500">正在與賣家聯繫</p>
+                    </div>
+                </div>
+                <button onclick="closeChat()" class="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-200 rounded-lg transition-all">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
             </div>
-    </div>
+            
+            <div id="chatMessages" class="flex-1 p-4 overflow-y-auto bg-white space-y-3 no-scrollbar">
+                </div>
 
-    <div class="chat-window" id="chatBox">
-        <div class="chat-header">
-            <span id="chatTargetName">與賣家對話中</span>
-            <button class="chat-close" onclick="closeChat()">×</button>
-        </div>
-        <div class="chat-messages" id="chatMessages">
+            <div class="p-3 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex items-center gap-2">
+                <input type="text" id="chatInput" placeholder="輸入訊息..." class="flex-1 text-sm px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all">
+                <button onclick="sendMessage()" class="bg-indigo-600 text-white p-2 rounded-xl hover:bg-indigo-700 transition-all">
+                    <i data-lucide="send" class="w-4 h-4"></i>
+                </button>
             </div>
-        <div class="chat-input-area">
-            <input type="text" class="chat-input" id="chatInputField" placeholder="輸入訊息..." onkeypress="handleChatKeyPress(event)">
-            <button class="chat-send" onclick="sendChatMessage()">傳送</button>
         </div>
     </div>
 
     <script>
-        // 全局變數定義
-        let currentUser = null;
+        // --- Configuration ---
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxYXZK3GJqrcLJ_cHaod_2oe7csAZh7tYMIIoDdILN_UK39_W5yA6ZHT8VDOVvVG76e/exec"; 
+
+        // Global State
+        let currentStatusFilter = 'active'; 
         let currentCategory = '全部';
-        let activeChatId = null;
+        let localRecords = []; 
+        let currentUser = null; 
+        let wishlist = JSON.parse(localStorage.getItem("wishlist") || "[]"); 
+        let currentChatItemId = null; // 🌟 紀錄當前正在聊天的物品 ID
 
-        // 初始化 mock 資料庫（如果 localStorage 沒資料，先預設幾筆供測試）
-        if (!localStorage.getItem('campus_items')) {
-            const mockItems = [
-                {
-                    id: 1, title: "微積分（上）一手課本", price: 200, category: "教科書", 
-                    img: "https://images.unsplash.com/photo-1543002588-bfa74002ed7e?w=500", 
-                    desc: "內有少量鉛筆劃記，期末Pass全靠它！校門口面交。", 
-                    status: "selling", publisherEmail: "teacher@test.com", publisherName: "張教授", publisherPic: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100"
-                },
-                {
-                    id: 2, title: "二手藍牙耳機 降噪功能正常", price: 800, category: "電子產品", 
-                    img: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500", 
-                    desc: "換新耳機故售出，外觀有微使用痕跡，附充電線。", 
-                    status: "selling", publisherEmail: "studentA@test.com", publisherName: "學長小明", publisherPic: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100"
-                }
-            ];
-            localStorage.setItem('campus_items', JSON.stringify(mockItems));
-        }
-        if (!localStorage.getItem('campus_chats')) {
-            localStorage.setItem('campus_chats', JSON.stringify({}));
-        }
-
-        // 1. Google 登入回呼解碼（保留並擴充原功能）
-        function handleCredentialResponse(response) {
-            const responsePayload = decodeJwtResponse(response.credential);
-            
-            currentUser = {
-                id: responsePayload.sub,
-                name: responsePayload.name,
-                email: responsePayload.email,
-                picture: responsePayload.picture
-            };
-
-            // 顯示使用者 UI
-            document.querySelector('.g_id_signin').style.display = 'none';
-            document.getElementById('userInfo').style.display = 'flex';
-            document.getElementById('userAvatar').src = currentUser.picture;
-            document.getElementById('userName').innerText = currentUser.name;
-            
-            // 開啟市集功能分頁
-            document.getElementById('navTabs').style.display = 'flex';
-            document.getElementById('loginPrompt').classList.remove('active');
-            switchTab('tab-market');
-            
-            // 載入資料
-            renderMarketItems();
-            renderDashboard();
-        }
-
-        // JWT 安全解碼函式
-        function decodeJwtResponse(token) {
-            let base64Url = token.split('.')[1];
-            let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-            let jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
-                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-            }).join(''));
-            return JSON.parse(jsonPayload);
-        }
-
-        // 登出系統
-        function logout() {
-            currentUser = null;
-            document.querySelector('.g_id_signin').style.display = 'block';
-            document.getElementById('userInfo').style.display = 'none';
-            document.getElementById('navTabs').style.display = 'none';
-            closeChat();
-            
-            // 返回未登入提示
-            document.querySelectorAll('.container').forEach(c => c.classList.remove('active'));
-            document.getElementById('loginPrompt').classList.add('active');
-        }
-
-        // 分頁切換
-        function switchTab(tabId) {
-            if (!currentUser) return;
-            document.querySelectorAll('.container').forEach(c => c.classList.remove('active'));
-            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-            
-            document.getElementById(tabId).classList.add('active');
-            // 讓導覽列按鈕同步高亮
-            const btnIndex = tabId === 'tab-market' ? 0 : tabId === 'tab-publish' ? 1 : 2;
-            document.getElementById('navTabs').children[btnIndex].classList.add('active');
-
-            if (tabId === 'tab-market') renderMarketItems();
-            if (tabId === 'tab-dashboard') renderDashboard();
-        }
-
-        // 2. 物品發佈邏輯 (綁定 Google Account 身分)
-        function publishItem(e) {
-            e.preventDefault();
-            if (!currentUser) return alert('請先登入！');
-
-            const items = JSON.parse(localStorage.getItem('campus_items')) || [];
-            const defaultImg = "https://images.unsplash.com/photo-1524141591473-59b68ef8f5bc?w=500";
-            
-            const newItem = {
-                id: Date.now(),
-                title: document.getElementById('pTitle').value,
-                price: parseInt(document.getElementById('pPrice').value),
-                category: document.getElementById('pCategory').value,
-                img: document.getElementById('pImg').value || defaultImg,
-                desc: document.getElementById('pDesc').value,
-                status: 'selling',
-                // 重要：存入發佈者的 Google 資訊
-                publisherEmail: currentUser.email,
-                publisherName: currentUser.name,
-                publisherPic: currentUser.picture
-            };
-
-            items.unshift(newItem); // 加在最前面
-            localStorage.setItem('campus_items', JSON.stringify(items));
-            
-            document.getElementById('publishForm').reset();
-            alert('🎉 寶物成功上架！');
-            switchTab('tab-market');
-        }
-
-        // 3. 渲染主市集（含分類與身分權限按鈕判斷）
-        function renderMarketItems() {
-            const items = JSON.parse(localStorage.getItem('campus_items')) || [];
-            const grid = document.getElementById('marketGrid');
-            grid.innerHTML = '';
-
-            const filteredItems = items.filter(item => currentCategory === '全部' || item.category === currentCategory);
-
-            if(filteredItems.length === 0) {
-                grid.innerHTML = `<p style="grid-column: 1/-1; text-align:center; color:#999;">目前此分類沒有任何物品唷～</p>`;
-                return;
+        // --- Core Functions ---
+        function decodeJwt(token) {
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                return JSON.parse(jsonPayload);
+            } catch(e) {
+                return null;
             }
+        }
 
-            filteredItems.forEach(item => {
-                const isPublisher = currentUser && (item.publisherEmail === currentUser.email);
-                const isSold = item.status === 'sold';
+        function handleCredentialResponse(response) {
+            const userData = decodeJwt(response.credential);
+            if (userData) {
+                currentUser = {
+                    name: userData.name,
+                    email: userData.email,
+                    picture: userData.picture
+                };
+                updateLoginUI();
+                renderList(localRecords);
+            }
+        }
+
+        function updateLoginUI() {
+            const authSection = document.getElementById("googleAuthSection");
+            const profileSection = document.getElementById("userProfileSection");
+            const publishBtn = document.getElementById("publishBtn");
+            const introBanner = document.getElementById("introBanner");
+
+            if (currentUser) {
+                authSection.classList.add("hidden");
+                profileSection.classList.remove("hidden");
+                document.getElementById("userAvatar").src = currentUser.picture;
+                document.getElementById("userName").textContent = currentUser.name;
                 
-                // 動態判斷按鈕：發佈者顯示「設為已賣出」，其他人顯示「聯絡賣家」
-                let actionButtonHtml = '';
-                if (isSold) {
-                    actionButtonHtml = `<button class="card-action-btn btn-disabled" disabled>此物品已售出</button>`;
-                } else if (isPublisher) {
-                    actionButtonHtml = `<button class="card-action-btn btn-sold" onclick="markAsSold(${item.id})">🤝 設為已賣出</button>`;
-                } else {
-                    actionButtonHtml = `<button class="card-action-btn btn-contact" onclick="openChat('${item.publisherEmail}', '${item.publisherName}', '${item.title}', ${item.id})">💬 聯絡賣家</button>`;
-                }
+                publishBtn.disabled = false;
+                publishBtn.className = "flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md hover:opacity-95 transition-all active:scale-95";
+                publishBtn.innerHTML = `<i data-lucide="plus" class="w-4 h-4"></i>發佈物品`;
+                
+                introBanner.classList.add("hidden");
+            } else {
+                authSection.classList.remove("hidden");
+                profileSection.classList.add("hidden");
+                
+                publishBtn.disabled = true;
+                publishBtn.className = "flex items-center gap-2 bg-slate-300 text-slate-500 cursor-not-allowed px-4 py-2 rounded-xl font-bold text-sm shadow-none transition-all";
+                publishBtn.innerHTML = `<i data-lucide="plus" class="w-4 h-4"></i>請先登入平臺`;
+                
+                introBanner.classList.remove("hidden");
+            }
+            lucide.createIcons();
+        }
 
-                const card = document.createElement('div');
-                card.className = 'item-card';
-                card.innerHTML = `
-                    <span class="status-badge ${isSold ? 'status-sold' : 'status-selling'}">${isSold ? '已售出' : '販售中'}</span>
-                    <img class="item-img" src="${item.img}" onerror="this.src='https://images.unsplash.com/photo-1524141591473-59b68ef8f5bc?w=500'">
-                    <div class="item-info">
-                        <div>
-                            <h4 class="item-title">${escapeHtml(item.title)}</h4>
-                            <p style="font-size:14px; color:#666; margin:0 0 10px 0;">${escapeHtml(item.desc)}</p>
-                            <div class="item-price">$${item.price}</div>
-                        </div>
-                        <div>
-                            <div class="item-publisher">
-                                <img class="pub-avatar" src="${item.publisherPic}">
-                                <span>發佈者: ${escapeHtml(item.publisherName)}</span>
-                            </div>
-                            ${actionButtonHtml}
-                        </div>
-                    </div>
-                `;
-                grid.appendChild(card);
+        function handleLogout() {
+            currentUser = null;
+            updateLoginUI();
+            renderList(localRecords);
+        }
+
+        function toggleWishlist(id) {
+            if (wishlist.includes(id)) {
+                wishlist = wishlist.filter(item => item !== id);
+            } else {
+                wishlist.push(id);
+            }
+            localStorage.setItem("wishlist", JSON.stringify(wishlist));
+            renderList(localRecords);
+        }
+
+        function copyContact(contact) {
+            navigator.clipboard.writeText(contact).then(() => {
+                alert(`聯絡資訊已複製：${contact}\n請使用通訊軟體聯絡賣家。`);
+            }).catch(() => {
+                alert(`聯絡方式：${contact}`);
             });
         }
 
-        // 分類篩選點擊
-        function filterCategory(cat, btn) {
-            currentCategory = cat;
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            renderMarketItems();
-        }
-
-        // 4. 將物品設為已賣出 (限發佈者本人權限)
-        function markAsSold(itemId) {
-            let items = JSON.parse(localStorage.getItem('campus_items')) || [];
-            const itemIndex = items.findIndex(i => i.id === itemId);
-            
-            if(itemIndex !== -1) {
-                if(items[itemIndex].publisherEmail !== currentUser.email) {
-                    return alert('權限不足！只有發佈者能將此物品下架。');
-                }
-                items[itemIndex].status = 'sold';
-                localStorage.setItem('campus_items', JSON.stringify(items));
-                alert('變更成功！商品已標示為售出。');
-                renderMarketItems();
-                renderDashboard();
+        // 🌟 新增：聊天室功能邏輯
+        function openChat(itemId, itemTitle) {
+            if (!currentUser) {
+                alert("請先登入才能使用聊天功能！");
+                return;
             }
-        }
-
-        // 5. 聊天室系統邏輯
-        function openChat(sellerEmail, sellerName, itemTitle, itemId) {
-            if (!currentUser) return alert('請先登入！');
-            if (currentUser.email === sellerEmail) return alert('這是你自己的商品唷！');
-
-            // 建立或取得唯一的聊天 ID 組合：買家Email_賣家Email_物品ID
-            activeChatId = `${currentUser.email}_${sellerEmail}_${itemId}`;
-            
-            let chats = JSON.parse(localStorage.getItem('campus_chats')) || {};
-            if (!chats[activeChatId]) {
-                chats[activeChatId] = {
-                    buyerEmail: currentUser.email,
-                    buyerName: currentUser.name,
-                    sellerEmail: sellerEmail,
-                    sellerName: sellerName,
-                    itemTitle: itemTitle,
-                    messages: []
-                };
-                localStorage.setItem('campus_chats', JSON.stringify(chats));
-            }
-
-            document.getElementById('chatTargetName').innerText = `詢問：${itemTitle} (${sellerName})`;
-            document.getElementById('chatBox').style.display = 'flex';
-            renderChatMessages();
-        }
-
-        function renderChatMessages() {
-            if (!activeChatId) return;
-            const chats = JSON.parse(localStorage.getItem('campus_chats')) || {};
-            const chat = chats[activeChatId];
-            const msgContainer = document.getElementById('chatMessages');
-            msgContainer.innerHTML = '';
-
-            if (chat && chat.messages) {
-                chat.messages.forEach(m => {
-                    const msgDiv = document.createElement('div');
-                    // 根據是誰傳送的來決定樣式
-                    msgDiv.className = `msg ${m.sender === currentUser.email ? 'sent' : 'received'}`;
-                    msgDiv.innerText = m.text;
-                    msgContainer.appendChild(msgDiv);
-                });
-            }
-            msgContainer.scrollTop = msgContainer.scrollHeight; // 自動滑到最底部
-        }
-
-        function sendChatMessage() {
-            const input = document.getElementById('chatInputField');
-            const text = input.value.trim();
-            if (!text || !activeChatId) return;
-
-            let chats = JSON.parse(localStorage.getItem('campus_chats')) || {};
-            if (chats[activeChatId]) {
-                chats[activeChatId].messages.push({
-                    sender: currentUser.email,
-                    senderName: currentUser.name,
-                    text: text,
-                    timestamp: Date.now()
-                });
-                localStorage.setItem('campus_chats', JSON.stringify(chats));
-                input.value = '';
-                renderChatMessages();
-                renderDashboard(); // 同步更新後台列表
-            }
-        }
-
-        function handleChatKeyPress(e) {
-            if (e.key === 'Enter') sendChatMessage();
+            currentChatItemId = itemId;
+            document.getElementById('chatTitle').textContent = `關於: ${itemTitle}`;
+            document.getElementById('chatModal').style.display = 'block';
+            loadChatMessages();
         }
 
         function closeChat() {
-            document.getElementById('chatBox').style.display = 'none';
-            activeChatId = null;
+            document.getElementById('chatModal').style.display = 'none';
+            currentChatItemId = null;
         }
 
-        // 6. 個人儀表板渲染 (我發佈的物品 + 歷史對話摘要清單)
-        function renderDashboard() {
-            if (!currentUser) return;
-            const items = JSON.parse(localStorage.getItem('campus_items')) || [];
-            const chats = JSON.parse(localStorage.getItem('campus_chats')) || {};
+        function loadChatMessages() {
+            const chatBox = document.getElementById('chatMessages');
+            const allChats = JSON.parse(localStorage.getItem('chats') || '{}');
+            const messages = allChats[currentChatItemId] || [];
             
-            // (A) 渲染我自己發佈的物品
-            const myItemsGrid = document.getElementById('myItemsGrid');
-            myItemsGrid.innerHTML = '';
-            const myItems = items.filter(i => i.publisherEmail === currentUser.email);
+            chatBox.innerHTML = '';
+            if(messages.length === 0) {
+                chatBox.innerHTML = `<div class="text-center text-xs text-slate-400 mt-4">這裡是聊天的開始，打個招呼吧！</div>`;
+                return;
+            }
 
-            if(myItems.length === 0) {
-                myItemsGrid.innerHTML = `<p style="color:#999; padding:10px;">你目前還沒有發佈過任何物品唷。</p>`;
-            } else {
-                myItems.forEach(item => {
-                    const div = document.createElement('div');
-                    div.className = 'item-card';
-                    div.innerHTML = `
-                        <span class="status-badge ${item.status === 'sold' ? 'status-sold' : 'status-selling'}">${item.status === 'sold' ? '已售出' : '販售中'}</span>
-                        <img class="item-img" src="${item.img}">
-                        <div class="item-info">
-                            <h4 class="item-title">${escapeHtml(item.title)}</h4>
-                            <div class="item-price">$${item.price}</div>
-                            ${item.status === 'selling' ? `<button class="card-action-btn btn-sold" onclick="markAsSold(${item.id})">🤝 設為已賣出</button>` : `<button class="card-action-btn btn-disabled" disabled>已售出</button>`}
+            messages.forEach(msg => {
+                const isMe = msg.sender === currentUser.email;
+                const msgHTML = `
+                    <div class="flex ${isMe ? 'justify-end' : 'justify-start'}">
+                        <div class="max-w-[80%] ${isMe ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-800'} rounded-2xl px-4 py-2 text-sm shadow-sm">
+                            <div class="text-[10px] ${isMe ? 'text-indigo-200' : 'text-slate-400'} mb-1">${msg.name}</div>
+                            ${msg.text}
                         </div>
-                    `;
-                    myItemsGrid.appendChild(div);
+                    </div>
+                `;
+                chatBox.innerHTML += msgHTML;
+            });
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const text = input.value.trim();
+            if (!text || !currentChatItemId) return;
+
+            const allChats = JSON.parse(localStorage.getItem('chats') || '{}');
+            if (!allChats[currentChatItemId]) allChats[currentChatItemId] = [];
+            
+            allChats[currentChatItemId].push({
+                sender: currentUser.email,
+                name: currentUser.name,
+                text: text,
+                timestamp: new Date().toISOString()
+            });
+
+            localStorage.setItem('chats', JSON.stringify(allChats));
+            input.value = '';
+            loadChatMessages();
+        }
+
+        // 綁定 Enter 鍵發送訊息
+        document.getElementById('chatInput')?.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+
+        async function syncToSheet(payload) {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("PASTE_YOUR_URL_HERE")) return;
+            try {
+                await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify(payload)
                 });
+            } catch (err) {
+                console.error("Google Sheet 同步失敗:", err);
+            }
+        }
+
+        function normalizeRecord(record) {
+            return {
+                id: record.id || record.ID || "",
+                createdAt: record.createdAt || record.CreatedAt || "",
+                title: record.title || record.Title || "",
+                description: record.description || record.Description || "",
+                category: record.category || record.Category || "其他",
+                price: record.price !== undefined ? record.price : (record.Price || 0),
+                imageUrl: record.imageUrl || record.ImageUrl || "",
+                status: record.status || record.Status || "active",
+                condition: record.condition || record.Condition || "九成新",
+                contact: record.contact || record.Contact || "未提供"
+            };
+        }
+
+        async function fetchRecordsFromSheet() {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("PASTE_YOUR_URL_HERE")) return null;
+            try {
+                const res = await fetch(APPS_SCRIPT_URL);
+                const data = await res.json();
+                const rawArray = data.records || (Array.isArray(data) ? data : null);
+                return Array.isArray(rawArray) ? rawArray.map(normalizeRecord) : null;
+            } catch (e) {
+                console.warn("從 Sheet 讀取失敗:", e);
+                return null;
+            }
+        }
+
+        async function loadData() {
+            const remote = await fetchRecordsFromSheet();
+            if (remote) {
+                localStorage.setItem("records", JSON.stringify(remote));
+                localRecords = remote;
+                return remote;
+            }
+            const data = localStorage.getItem("records");
+            localRecords = data ? JSON.parse(data) : [];
+            return localRecords;
+        }
+
+        async function saveData(newRecord) {
+            const records = await loadData();
+            records.push(newRecord);
+            localStorage.setItem("records", JSON.stringify(records));
+            syncToSheet({ action: "create", record: newRecord });
+            await renderList(records);
+        }
+
+        function setCategory(cat) {
+            currentCategory = cat;
+            renderList(localRecords);
+        }
+
+        function setStatusFilter(status) {
+            currentStatusFilter = status;
+            renderList(localRecords);
+        }
+
+        async function renderList(recordsOverride) {
+            const allRecords = recordsOverride || await loadData();
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const grid = document.getElementById('itemsGrid');
+            const emptyState = document.getElementById('emptyState');
+            const sortVal = document.getElementById('sortSelect').value;
+
+            let filtered = allRecords.filter(item => {
+                const statusMatch = currentStatusFilter === '全部' || item.status === currentStatusFilter;
+                const categoryMatch = currentCategory === '全部' || item.category === currentCategory;
+                const searchMatch = (item.title || '').toLowerCase().includes(searchTerm) || 
+                                    (item.description || '').toLowerCase().includes(searchTerm);
+                return statusMatch && categoryMatch && searchMatch;
+            });
+
+            if (sortVal === 'priceLow') {
+                filtered.sort((a, b) => a.price - b.price);
+            } else if (sortVal === 'priceHigh') {
+                filtered.sort((a, b) => b.price - a.price);
+            } else {
+                filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             }
 
-            // (B) 渲染跟我有關係的聊天歷史（我是買家或者是賣家）
-            const historyList = document.getElementById('chatHistoryList');
-            historyList.innerHTML = '';
-            let hasChats = false;
+            document.getElementById('statActive').innerText = allRecords.filter(r => r.status === 'active').length;
+            document.getElementById('statDone').innerText = allRecords.filter(r => r.status === 'done').length;
+            document.getElementById('statTotal').innerText = allRecords.length;
+            document.getElementById('wishlistCountBadge').classList.toggle('hidden', wishlist.length === 0);
 
-            for (let chatId in chats) {
-                const chat = chats[chatId];
-                if (chat.buyerEmail === currentUser.email || chat.sellerEmail === currentUser.email) {
-                    hasChats = true;
-                    const isIAmSeller = chat.sellerEmail === currentUser.email;
-                    const talkToName = isIAmSeller ? chat.buyerName : chat.sellerName;
-                    const lastMsg = chat.messages.length > 0 ? chat.messages[chat.messages.length - 1].text : "點擊開啟對話...";
-                    
-                    // 從 chatId 拆出 itemId
-                    const idParts = chatId.split('_');
-                    const itemId = idParts[idParts.length - 1];
+            grid.innerHTML = '';
+            if (filtered.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
 
-                    const chatRow = document.createElement('div');
-                    chatRow.style = "padding:12px; border-bottom:1px solid #eee; cursor:pointer; display:flex; justify-content:space-between; align-items:center;";
-                    chatRow.onclick = function() {
-                        activeChatId = chatId;
-                        document.getElementById('chatTargetName').innerText = `詢問：${chat.itemTitle} (${talkToName})`;
-                        document.getElementById('chatBox').style.display = 'flex';
-                        renderChatMessages();
-                    };
-                    
-                    chatRow.innerHTML = `
-                        <div>
-                            <strong style="color:var(--primary-color);">【${escapeHtml(chat.itemTitle)}】</strong>
-                            <span style="margin-left:8px; font-size:14px; font-weight:bold;">對話對象: ${escapeHtml(talkToName)} ${isIAmSeller ? '(買家)' : '(賣家)'}</span>
-                            <div style="font-size:13px; color:#777; margin-top:4px;">最新訊息: ${escapeHtml(lastMsg)}</div>
+            filtered.forEach(item => {
+                const isFavorite = wishlist.includes(item.id);
+                const statusBadge = item.status === 'active' 
+                    ? '<span class="bg-emerald-500 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-sm uppercase tracking-wider">Active</span>'
+                    : '<span class="bg-slate-400 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-sm uppercase tracking-wider">Done</span>';
+
+                let conditionClass = "bg-slate-100 text-slate-600";
+                if (item.condition === '全新') conditionClass = "bg-rose-50 text-rose-600 border border-rose-100";
+                if (item.condition === '九成新') conditionClass = "bg-amber-50 text-amber-600 border border-amber-100";
+
+                const cardHTML = `
+                    <div class="group bg-white rounded-2xl border border-slate-100 overflow-hidden hover:shadow-xl hover:shadow-indigo-100/40 hover:-translate-y-1 transition-all duration-300 flex flex-col h-full relative">
+                        <div class="relative h-44 overflow-hidden bg-slate-50">
+                            ${item.imageUrl 
+                                ? `<img src="${item.imageUrl}" alt="${item.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">`
+                                : `<div class="w-full h-full flex items-center justify-center text-slate-300"><i data-lucide="image" class="w-10 h-10"></i></div>`
+                            }
+                            <div class="absolute top-3 left-3 z-10">
+                                ${statusBadge}
+                            </div>
+                            <button onclick="toggleWishlist('${item.id}')" class="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-sm text-slate-400 hover:text-rose-500 transition-colors">
+                                <i data-lucide="heart" class="w-4 h-4 ${isFavorite ? 'fill-rose-500 text-rose-500' : ''}"></i>
+                            </button>
                         </div>
-                        <span style="color:var(--primary-color); font-size:14px;">點擊進入 ➔</span>
-                    `;
-                    historyList.appendChild(chatRow);
-                }
-            }
+                        
+                        <div class="p-5 flex flex-col flex-1">
+                            <div class="flex justify-between items-start gap-2 mb-2">
+                                <h3 class="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1">${item.title}</h3>
+                                <span class="bg-indigo-50 text-indigo-600 text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0">${item.category}</span>
+                            </div>
+                            
+                            <div class="flex gap-1.5 mb-3">
+                                <span class="text-[10px] font-semibold px-2 py-0.5 rounded ${conditionClass}">${item.condition}</span>
+                            </div>
 
-            if(!hasChats) {
-                historyList.innerHTML = `<p style="color:#999; margin:0;">目前沒有任何對話訊息記錄。</p>`;
+                            <p class="text-slate-500 text-xs line-clamp-2 mb-4 h-8">${item.description}</p>
+                            
+                            <div class="flex items-center justify-between mb-4 mt-auto">
+                                <span class="text-lg font-black text-slate-900">MOP ${item.price}</span>
+                                
+                                <div class="flex gap-1">
+                                    <button onclick="copyContact('${item.contact}')" class="flex items-center gap-1 text-[11px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1.5 rounded-lg transition-colors" title="獲取聯絡資訊">
+                                        <i data-lucide="clipboard" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                    
+                                    <button onclick="openChat('${item.id}', '${item.title}')" class="flex items-center gap-1 text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-2.5 py-1.5 rounded-lg transition-colors" title="私訊賣家">
+                                        <i data-lucide="message-square" class="w-3.5 h-3.5"></i> 聊聊
+                                    </button>
+
+                                    ${currentUser ? `
+                                        <div class="flex border-l border-slate-100 pl-1 ml-1 gap-0.5">
+                                            ${item.status === 'active' ? `
+                                                <button onclick="toggleStatus('${item.id}', 'done')" class="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all" title="標記為已售出">
+                                                    <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                            ` : `
+                                                <button onclick="toggleStatus('${item.id}', 'active')" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="重新上架">
+                                                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                                                </button>
+                                            `}
+                                            <button onclick="deleteRecord('${item.id}')" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="下架刪除">
+                                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                            </button>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                            
+                            <div class="pt-3 border-t border-slate-50 flex items-center justify-between">
+                                <div class="flex items-center gap-1.5">
+                                    <div class="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden">
+                                        <i data-lucide="user" class="w-3 h-3 text-slate-400"></i>
+                                    </div>
+                                    <span class="text-[10px] text-slate-400 font-medium">發佈於 ${new Date(item.createdAt).toLocaleDateString()}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                grid.innerHTML += cardHTML;
+            });
+            lucide.createIcons();
+        }
+
+        // --- 彈窗與表單處理 ---
+        function openModal() {
+            if (!currentUser) {
+                alert("請先登入才能發佈物品！");
+                return;
+            }
+            document.getElementById('postModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('postModal').style.display = 'none';
+        }
+
+        async function handlePost(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const newRecord = {
+                id: Date.now().toString(),
+                createdAt: new Date().toISOString(),
+                title: formData.get('title'),
+                price: Number(formData.get('price')),
+                category: formData.get('category'),
+                condition: formData.get('condition'),
+                contact: formData.get('contact'),
+                description: formData.get('description'),
+                imageUrl: formData.get('imageUrl'),
+                status: 'active'
+            };
+            await saveData(newRecord);
+            closeModal();
+            e.target.reset();
+        }
+
+        async function toggleStatus(id, newStatus) {
+            const index = localRecords.findIndex(r => r.id === id);
+            if (index !== -1) {
+                localRecords[index].status = newStatus;
+                localStorage.setItem("records", JSON.stringify(localRecords));
+                syncToSheet({ action: "update", id: id, status: newStatus });
+                renderList(localRecords);
             }
         }
 
-        // 安全 XSS 防護過濾小工具
-        function escapeHtml(text) {
-            return text
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
+        async function deleteRecord(id) {
+            if(confirm("確定要刪除這個物品嗎？")) {
+                localRecords = localRecords.filter(r => r.id !== id);
+                localStorage.setItem("records", JSON.stringify(localRecords));
+                syncToSheet({ action: "delete", id: id });
+                renderList(localRecords);
+            }
         }
+
+        // 初始化
+        window.onload = () => {
+            loadData().then(() => renderList());
+        };
     </script>
 </body>
 </html>
