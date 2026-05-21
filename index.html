@@ -33,6 +33,10 @@
         /* 隱藏滾動條但保持功能 */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* 聊天對話框樣式 */
+        .chat-message-sent { background-color: #4F46E5; color: white; border-bottom-right-radius: 4px; }
+        .chat-message-received { background-color: #F1F5F9; color: #1E293B; border-bottom-left-radius: 4px; }
     </style>
 </head>
 <body class="min-h-screen text-slate-800 relative overflow-x-hidden">
@@ -130,6 +134,7 @@
                         <option value="newest">最新上架</option>
                         <option value="priceLow">價格：低到高</option>
                         <option value="priceHigh">價格：高到低</option>
+                        <option value="mostViewed">最多人看</option>
                     </select>
                 </div>
 
@@ -153,7 +158,7 @@
                     <span id="aiBtnText">AI 市集摘要</span>
                 </button>
                 
-                <button id="publishBtn" onclick="openModal()" disabled class="flex items-center gap-2 bg-slate-300 text-slate-500 cursor-not-allowed px-4 py-2 rounded-xl font-bold text-sm shadow-lg transition-all">
+                <button id="publishBtn" onclick="openModal('postModal')" disabled class="flex items-center gap-2 bg-slate-300 text-slate-500 cursor-not-allowed px-4 py-2 rounded-xl font-bold text-sm shadow-lg transition-all">
                     <i data-lucide="plus" class="w-4 h-4"></i>
                     請先登入平臺
                 </button>
@@ -172,13 +177,13 @@
     </main>
 
     <div id="postModal" class="modal-overlay">
-        <div class="max-w-2xl mx-auto mt-20 bg-white p-6 rounded-2xl shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto no-scrollbar">
+        <div class="modal-content absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-white rounded-2xl p-6 transform transition-all shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto no-scrollbar">
             <div class="flex justify-between items-center mb-6">
                 <div class="flex items-center gap-2">
                     <i data-lucide="file-plus-2" class="text-indigo-600 w-5 h-5"></i>
                     <h2 class="text-xl font-bold text-slate-900">發佈二手交換物品</h2>
                 </div>
-                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-50 rounded-lg transition-all">
+                <button onclick="closeModal('postModal')" class="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-50 rounded-lg transition-all">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
@@ -221,7 +226,7 @@
                 </div>
 
                 <div class="space-y-1.5">
-                    <label class="text-xs font-bold text-slate-500">物品描述描述 <span class="text-rose-500">*</span></label>
+                    <label class="text-xs font-bold text-slate-500">物品描述 <span class="text-rose-500">*</span></label>
                     <textarea name="description" required placeholder="請詳細描述規格、可交換之意向物品等..." class="w-full text-sm px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 min-h-[90px] transition-all"></textarea>
                 </div>
 
@@ -238,32 +243,37 @@
     </div>
 
     <div id="chatModal" class="modal-overlay">
-        <div class="max-w-md mx-auto mt-20 bg-white rounded-2xl shadow-2xl border border-slate-100 flex flex-col h-[500px]">
-            <div class="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50 rounded-t-2xl">
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 flex flex-col h-[500px] overflow-hidden">
+            <div class="bg-slate-50 border-b border-slate-100 p-4 flex justify-between items-center">
                 <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
-                        <i data-lucide="message-circle" class="w-4 h-4"></i>
-                    </div>
+                    <img id="chatAvatar" src="" class="w-10 h-10 rounded-full object-cover shadow-sm">
                     <div>
-                        <h3 class="font-bold text-slate-900 text-sm" id="chatTitle">聊天室</h3>
-                        <p class="text-xs text-slate-500">正在與賣家聯繫</p>
+                        <h3 id="chatUserName" class="font-bold text-slate-900 text-sm"></h3>
+                        <p id="chatItemTitle" class="text-xs text-slate-500 line-clamp-1"></p>
                     </div>
                 </div>
-                <button onclick="closeChat()" class="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-200 rounded-lg transition-all">
+                <button onclick="closeModal('chatModal')" class="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-200 rounded-lg transition-all">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
             
-            <div id="chatMessages" class="flex-1 p-4 overflow-y-auto bg-white space-y-3 no-scrollbar">
+            <div id="chatMessages" class="flex-1 p-4 overflow-y-auto bg-white flex flex-col gap-3">
                 </div>
 
-            <div class="p-3 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex items-center gap-2">
-                <input type="text" id="chatInput" placeholder="輸入訊息..." class="flex-1 text-sm px-3 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all">
-                <button onclick="sendMessage()" class="bg-indigo-600 text-white p-2 rounded-xl hover:bg-indigo-700 transition-all">
+            <div class="p-3 bg-slate-50 border-t border-slate-100 flex gap-2">
+                <input type="text" id="chatInput" placeholder="輸入訊息..." class="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500" onkeypress="if(event.key === 'Enter') sendChatMessage()">
+                <button onclick="sendChatMessage()" class="bg-indigo-600 text-white p-2 rounded-xl hover:bg-indigo-700 transition-colors flex items-center justify-center w-10">
                     <i data-lucide="send" class="w-4 h-4"></i>
                 </button>
             </div>
         </div>
+    </div>
+
+    <div id="imageLightbox" class="modal-overlay flex items-center justify-center cursor-zoom-out" onclick="closeModal('imageLightbox')">
+        <img id="lightboxImg" src="" class="max-w-[90vw] max-h-[90vh] object-contain rounded-xl shadow-2xl" onclick="event.stopPropagation()">
+        <button class="absolute top-6 right-6 text-white/70 hover:text-white bg-black/50 p-2 rounded-full transition-all">
+            <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
     </div>
 
     <script>
@@ -275,10 +285,14 @@
         let currentCategory = '全部';
         let localRecords = []; 
         let currentUser = null; 
-        let wishlist = JSON.parse(localStorage.getItem("wishlist") || "[]"); 
-        let currentChatItemId = null; // 🌟 紀錄當前正在聊天的物品 ID
+        let wishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
+        
+        // Chat State
+        let activeChatContext = null; 
+        let chatHistory = JSON.parse(localStorage.getItem("chatHistory") || "{}");
 
         // --- Core Functions ---
+
         function decodeJwt(token) {
             try {
                 const base64Url = token.split('.')[1];
@@ -320,7 +334,6 @@
                 publishBtn.disabled = false;
                 publishBtn.className = "flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md hover:opacity-95 transition-all active:scale-95";
                 publishBtn.innerHTML = `<i data-lucide="plus" class="w-4 h-4"></i>發佈物品`;
-                
                 introBanner.classList.add("hidden");
             } else {
                 authSection.classList.remove("hidden");
@@ -329,7 +342,6 @@
                 publishBtn.disabled = true;
                 publishBtn.className = "flex items-center gap-2 bg-slate-300 text-slate-500 cursor-not-allowed px-4 py-2 rounded-xl font-bold text-sm shadow-none transition-all";
                 publishBtn.innerHTML = `<i data-lucide="plus" class="w-4 h-4"></i>請先登入平臺`;
-                
                 introBanner.classList.remove("hidden");
             }
             lucide.createIcons();
@@ -351,85 +363,117 @@
             renderList(localRecords);
         }
 
-        function copyContact(contact) {
-            navigator.clipboard.writeText(contact).then(() => {
-                alert(`聯絡資訊已複製：${contact}\n請使用通訊軟體聯絡賣家。`);
-            }).catch(() => {
-                alert(`聯絡方式：${contact}`);
+        function shareItem(title) {
+            const url = window.location.href;
+            navigator.clipboard.writeText(`快來看看校園二手市集的「${title}」！\n連結: ${url}`).then(() => {
+                alert("已複製分享連結！");
             });
         }
 
-        // 🌟 新增：聊天室功能邏輯
-        function openChat(itemId, itemTitle) {
+        // --- Chat System Logic ---
+        function openChat(itemId, sellerEmail, sellerName, sellerPic, itemTitle) {
             if (!currentUser) {
-                alert("請先登入才能使用聊天功能！");
+                alert("請先登入後再聯絡賣家！");
                 return;
             }
-            currentChatItemId = itemId;
-            document.getElementById('chatTitle').textContent = `關於: ${itemTitle}`;
-            document.getElementById('chatModal').style.display = 'block';
-            loadChatMessages();
-        }
-
-        function closeChat() {
-            document.getElementById('chatModal').style.display = 'none';
-            currentChatItemId = null;
-        }
-
-        function loadChatMessages() {
-            const chatBox = document.getElementById('chatMessages');
-            const allChats = JSON.parse(localStorage.getItem('chats') || '{}');
-            const messages = allChats[currentChatItemId] || [];
+            if (currentUser.email === sellerEmail) {
+                alert("這是您自己發佈的物品喔！");
+                return;
+            }
             
-            chatBox.innerHTML = '';
+            // Generate unique chat room ID based on Item and Buyer
+            const roomId = `${itemId}_${currentUser.email}`;
+            activeChatContext = { roomId, sellerEmail, sellerName, sellerPic, itemTitle };
+            
+            document.getElementById('chatAvatar').src = sellerPic || 'https://via.placeholder.com/40';
+            document.getElementById('chatUserName').textContent = sellerName;
+            document.getElementById('chatItemTitle').textContent = `關於: ${itemTitle}`;
+            
+            renderChatMessages();
+            openModal('chatModal');
+        }
+
+        function renderChatMessages() {
+            const container = document.getElementById('chatMessages');
+            container.innerHTML = '';
+            
+            const messages = chatHistory[activeChatContext.roomId] || [];
             if(messages.length === 0) {
-                chatBox.innerHTML = `<div class="text-center text-xs text-slate-400 mt-4">這裡是聊天的開始，打個招呼吧！</div>`;
+                container.innerHTML = `<div class="text-center text-xs text-slate-400 my-auto">這裡是對話的開端，打個招呼吧！</div>`;
                 return;
             }
 
             messages.forEach(msg => {
-                const isMe = msg.sender === currentUser.email;
-                const msgHTML = `
-                    <div class="flex ${isMe ? 'justify-end' : 'justify-start'}">
-                        <div class="max-w-[80%] ${isMe ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-800'} rounded-2xl px-4 py-2 text-sm shadow-sm">
-                            <div class="text-[10px] ${isMe ? 'text-indigo-200' : 'text-slate-400'} mb-1">${msg.name}</div>
+                const isMe = msg.senderEmail === currentUser.email;
+                const timeStr = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                
+                const msgHtml = `
+                    <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[80%] ${isMe ? 'ml-auto' : 'mr-auto'}">
+                        <div class="px-3 py-2 rounded-2xl text-sm ${isMe ? 'chat-message-sent rounded-tr-none' : 'chat-message-received rounded-tl-none'}">
                             ${msg.text}
                         </div>
+                        <span class="text-[10px] text-slate-400 mt-1">${timeStr}</span>
                     </div>
                 `;
-                chatBox.innerHTML += msgHTML;
+                container.innerHTML += msgHtml;
             });
-            chatBox.scrollTop = chatBox.scrollHeight;
+            // Scroll to bottom
+            container.scrollTop = container.scrollHeight;
         }
 
-        function sendMessage() {
+        function sendChatMessage() {
             const input = document.getElementById('chatInput');
             const text = input.value.trim();
-            if (!text || !currentChatItemId) return;
+            if(!text || !activeChatContext) return;
 
-            const allChats = JSON.parse(localStorage.getItem('chats') || '{}');
-            if (!allChats[currentChatItemId]) allChats[currentChatItemId] = [];
-            
-            allChats[currentChatItemId].push({
-                sender: currentUser.email,
-                name: currentUser.name,
+            if (!chatHistory[activeChatContext.roomId]) {
+                chatHistory[activeChatContext.roomId] = [];
+            }
+
+            const newMessage = {
+                senderEmail: currentUser.email,
                 text: text,
                 timestamp: new Date().toISOString()
-            });
+            };
 
-            localStorage.setItem('chats', JSON.stringify(allChats));
+            chatHistory[activeChatContext.roomId].push(newMessage);
+            localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+            
             input.value = '';
-            loadChatMessages();
+            renderChatMessages();
         }
 
-        // 綁定 Enter 鍵發送訊息
-        document.getElementById('chatInput')?.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') sendMessage();
-        });
+        // --- View Counter Logic ---
+        function recordView(id, imageUrl) {
+            // 點擊圖片時記錄一次瀏覽並放大
+            let records = JSON.parse(localStorage.getItem("records") || "[]");
+            let item = records.find(r => r.id === id);
+            if(item) {
+                item.views = (item.views || 0) + 1;
+                localStorage.setItem("records", JSON.stringify(records));
+                
+                // 本地更新 state 避免需要完整重載
+                const idx = localRecords.findIndex(r => r.id === id);
+                if(idx > -1) localRecords[idx].views = item.views;
+                
+                // 更新畫面上的數字
+                const viewSpan = document.getElementById(`view-count-${id}`);
+                if(viewSpan) viewSpan.textContent = item.views;
+            }
 
+            // 打開圖片放大鏡
+            if(imageUrl) {
+                document.getElementById('lightboxImg').src = imageUrl;
+                openModal('imageLightbox');
+            }
+        }
 
+        // --- Data Handling ---
         async function syncToSheet(payload) {
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("PASTE_YOUR_URL_HERE")) return;
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbxYXZK3GJqrcLJ_cHaod_2oe7csAZh7tYMIIoDdILN_UK39_W5yA6ZHT8VDOVvVG76e/exec")) {
+                console.warn("Apps Script URL 未設定");
+                return;
+            }
             try {
                 await fetch(APPS_SCRIPT_URL, {
                     method: 'POST',
@@ -452,19 +496,21 @@
                 imageUrl: record.imageUrl || record.ImageUrl || "",
                 status: record.status || record.Status || "active",
                 condition: record.condition || record.Condition || "九成新",
-                contact: record.contact || record.Contact || "未提供"
+                contact: record.contact || record.Contact || "未提供",
+                views: record.views || 0,
+                // 發佈者綁定 (相容舊資料)
+                publisher: record.publisher || { name: "匿名同學", email: "", picture: "" } 
             };
         }
 
         async function fetchRecordsFromSheet() {
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("PASTE_YOUR_URL_HERE")) return null;
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbxYXZK3GJqrcLJ_cHaod_2oe7csAZh7tYMIIoDdILN_UK39_W5yA6ZHT8VDOVvVG76e/exec")) return null;
             try {
                 const res = await fetch(APPS_SCRIPT_URL);
                 const data = await res.json();
                 const rawArray = data.records || (Array.isArray(data) ? data : null);
                 return Array.isArray(rawArray) ? rawArray.map(normalizeRecord) : null;
             } catch (e) {
-                console.warn("從 Sheet 讀取失敗:", e);
                 return null;
             }
         }
@@ -477,7 +523,7 @@
                 return remote;
             }
             const data = localStorage.getItem("records");
-            localRecords = data ? JSON.parse(data) : [];
+            localRecords = data ? JSON.parse(data).map(normalizeRecord) : [];
             return localRecords;
         }
 
@@ -487,16 +533,6 @@
             localStorage.setItem("records", JSON.stringify(records));
             syncToSheet({ action: "create", record: newRecord });
             await renderList(records);
-        }
-
-        function setCategory(cat) {
-            currentCategory = cat;
-            renderList(localRecords);
-        }
-
-        function setStatusFilter(status) {
-            currentStatusFilter = status;
-            renderList(localRecords);
         }
 
         async function renderList(recordsOverride) {
@@ -518,6 +554,8 @@
                 filtered.sort((a, b) => a.price - b.price);
             } else if (sortVal === 'priceHigh') {
                 filtered.sort((a, b) => b.price - a.price);
+            } else if (sortVal === 'mostViewed') {
+                filtered.sort((a, b) => (b.views || 0) - (a.views || 0));
             } else {
                 filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             }
@@ -525,6 +563,7 @@
             document.getElementById('statActive').innerText = allRecords.filter(r => r.status === 'active').length;
             document.getElementById('statDone').innerText = allRecords.filter(r => r.status === 'done').length;
             document.getElementById('statTotal').innerText = allRecords.length;
+
             document.getElementById('wishlistCountBadge').classList.toggle('hidden', wishlist.length === 0);
 
             grid.innerHTML = '';
@@ -537,6 +576,9 @@
 
             filtered.forEach(item => {
                 const isFavorite = wishlist.includes(item.id);
+                // 確認是否為發佈者本人
+                const isOwner = currentUser && item.publisher && currentUser.email === item.publisher.email && currentUser.email !== "";
+                
                 const statusBadge = item.status === 'active' 
                     ? '<span class="bg-emerald-500 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-sm uppercase tracking-wider">Active</span>'
                     : '<span class="bg-slate-400 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow-sm uppercase tracking-wider">Done</span>';
@@ -545,9 +587,13 @@
                 if (item.condition === '全新') conditionClass = "bg-rose-50 text-rose-600 border border-rose-100";
                 if (item.condition === '九成新') conditionClass = "bg-amber-50 text-amber-600 border border-amber-100";
 
+                const safePublisherName = item.publisher?.name || "匿名同學";
+                const safePublisherPic = item.publisher?.picture || "https://via.placeholder.com/20";
+                const safePublisherEmail = item.publisher?.email || "";
+
                 const cardHTML = `
                     <div class="group bg-white rounded-2xl border border-slate-100 overflow-hidden hover:shadow-xl hover:shadow-indigo-100/40 hover:-translate-y-1 transition-all duration-300 flex flex-col h-full relative">
-                        <div class="relative h-44 overflow-hidden bg-slate-50">
+                        <div class="relative h-44 overflow-hidden bg-slate-50 cursor-zoom-in" onclick="recordView('${item.id}', '${item.imageUrl || ''}')" title="點擊放大圖片">
                             ${item.imageUrl 
                                 ? `<img src="${item.imageUrl}" alt="${item.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">`
                                 : `<div class="w-full h-full flex items-center justify-center text-slate-300"><i data-lucide="image" class="w-10 h-10"></i></div>`
@@ -555,9 +601,17 @@
                             <div class="absolute top-3 left-3 z-10">
                                 ${statusBadge}
                             </div>
-                            <button onclick="toggleWishlist('${item.id}')" class="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-sm text-slate-400 hover:text-rose-500 transition-colors">
-                                <i data-lucide="heart" class="w-4 h-4 ${isFavorite ? 'fill-rose-500 text-rose-500' : ''}"></i>
-                            </button>
+                            <div class="absolute top-3 right-3 z-10 flex flex-col gap-2">
+                                <button onclick="event.stopPropagation(); toggleWishlist('${item.id}')" class="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-sm text-slate-400 hover:text-rose-500 transition-colors">
+                                    <i data-lucide="heart" class="w-4 h-4 ${isFavorite ? 'fill-rose-500 text-rose-500' : ''}"></i>
+                                </button>
+                                <button onclick="event.stopPropagation(); shareItem('${item.title}')" class="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-sm text-slate-400 hover:text-indigo-500 transition-colors">
+                                    <i data-lucide="share-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                            <div class="absolute bottom-2 right-2 bg-black/40 backdrop-blur-sm text-white text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <i data-lucide="eye" class="w-3 h-3"></i> <span id="view-count-${item.id}">${item.views || 0}</span>
+                            </div>
                         </div>
                         
                         <div class="p-5 flex flex-col flex-1">
@@ -576,15 +630,15 @@
                                 <span class="text-lg font-black text-slate-900">MOP ${item.price}</span>
                                 
                                 <div class="flex gap-1">
-                                    <button onclick="copyContact('${item.contact}')" class="flex items-center gap-1 text-[11px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1.5 rounded-lg transition-colors" title="獲取聯絡資訊">
-                                        <i data-lucide="clipboard" class="w-3.5 h-3.5"></i>
-                                    </button>
-                                    
-                                    <button onclick="openChat('${item.id}', '${item.title}')" class="flex items-center gap-1 text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-2.5 py-1.5 rounded-lg transition-colors" title="私訊賣家">
-                                        <i data-lucide="message-square" class="w-3.5 h-3.5"></i> 聊聊
-                                    </button>
+                                    ${!isOwner ? `
+                                        <button onclick="openChat('${item.id}', '${safePublisherEmail}', '${safePublisherName}', '${safePublisherPic}', '${item.title}')" class="flex items-center gap-1 text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-2.5 py-1.5 rounded-lg transition-colors" title="開啟聊天室聯絡賣家">
+                                            <i data-lucide="message-circle" class="w-3.5 h-3.5"></i> 聯絡賣家
+                                        </button>
+                                    ` : `
+                                        <span class="flex items-center gap-1 text-[11px] font-bold bg-slate-100 text-slate-400 px-2.5 py-1.5 rounded-lg">您的物品</span>
+                                    `}
 
-                                    ${currentUser ? `
+                                    ${isOwner ? `
                                         <div class="flex border-l border-slate-100 pl-1 ml-1 gap-0.5">
                                             ${item.status === 'active' ? `
                                                 <button onclick="toggleStatus('${item.id}', 'done')" class="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all" title="標記為已售出">
@@ -604,77 +658,164 @@
                             </div>
                             
                             <div class="pt-3 border-t border-slate-50 flex items-center justify-between">
-                                <div class="flex items-center gap-1.5">
-                                    <div class="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden">
-                                        <i data-lucide="user" class="w-3 h-3 text-slate-400"></i>
-                                    </div>
-                                    <span class="text-[10px] text-slate-400 font-medium">發佈於 ${new Date(item.createdAt).toLocaleDateString()}</span>
+                                <div class="flex items-center gap-2">
+                                    <img src="${safePublisherPic}" alt="avatar" class="w-5 h-5 rounded-full object-cover border border-slate-200">
+                                    <span class="text-[11px] font-medium text-slate-600 truncate max-w-[100px]">${safePublisherName}</span>
                                 </div>
+                                <span class="text-[10px] text-slate-400 font-medium">${item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}</span>
                             </div>
                         </div>
                     </div>
                 `;
                 grid.innerHTML += cardHTML;
             });
+
             lucide.createIcons();
         }
 
-        // --- 彈窗與表單處理 ---
-        function openModal() {
-            if (!currentUser) {
-                alert("請先登入才能發佈物品！");
-                return;
+        // --- UI Modal Controls ---
+        function openModal(modalId) {
+            if(modalId === 'postModal' && !currentUser) { 
+                alert('請先完成 Google 登入後再發佈物品！'); 
+                return; 
             }
-            document.getElementById('postModal').style.display = 'block';
+            document.getElementById(modalId).style.display = 'block';
         }
 
-        function closeModal() {
-            document.getElementById('postModal').style.display = 'none';
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+            if(modalId === 'postModal') document.getElementById('postForm').reset();
+            if(modalId === 'chatModal') activeChatContext = null;
         }
 
         async function handlePost(e) {
             e.preventDefault();
+            if(!currentUser) return;
+
             const formData = new FormData(e.target);
+            
             const newRecord = {
-                id: Date.now().toString(),
+                id: Date.now() + "_" + Math.random().toString(36).slice(2,6),
                 createdAt: new Date().toISOString(),
                 title: formData.get('title'),
-                price: Number(formData.get('price')),
-                category: formData.get('category'),
-                condition: formData.get('condition'),
-                contact: formData.get('contact'),
                 description: formData.get('description'),
+                category: formData.get('category'),
+                price: parseFloat(formData.get('price')),
                 imageUrl: formData.get('imageUrl'),
-                status: 'active'
+                status: "active",
+                condition: formData.get('condition'), 
+                contact: formData.get('contact'),
+                views: 0,
+                // 寫入發佈者身份 (需求1)
+                publisher: {
+                    name: currentUser.name,
+                    email: currentUser.email,
+                    picture: currentUser.picture
+                }
             };
+
             await saveData(newRecord);
-            closeModal();
-            e.target.reset();
+            closeModal('postModal');
+        }
+
+        async function setStatusFilter(status) {
+            currentStatusFilter = status;
+            const buttons = document.querySelectorAll('#statusFilterGroup button');
+            buttons.forEach(btn => {
+                const isActive = (status === '全部' && btn.innerText === '全部') || 
+                                 (status === 'active' && btn.innerText.includes('Active')) || 
+                                 (status === 'done' && btn.innerText.includes('Done'));
+                
+                btn.className = isActive 
+                    ? "status-btn px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200"
+                    : "status-btn px-4 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-500 hover:text-slate-800";
+            });
+            await renderList(localRecords);
+        }
+
+        async function setCategory(cat) {
+            currentCategory = cat;
+            document.getElementById('listTitle').innerText = cat === '全部' ? '刊登中寶物' : cat;
+            const buttons = document.querySelectorAll('#categoryGroup button');
+            buttons.forEach(btn => {
+                btn.className = (btn.innerText === cat)
+                    ? "cat-btn px-4 py-1.5 text-sm font-bold rounded-lg transition-all bg-white text-indigo-600 shadow-sm border border-slate-200"
+                    : "cat-btn px-4 py-1.5 text-sm font-medium rounded-lg transition-all text-slate-500 hover:text-slate-900";
+            });
+            await renderList(localRecords);
         }
 
         async function toggleStatus(id, newStatus) {
-            const index = localRecords.findIndex(r => r.id === id);
+            const records = await loadData();
+            const index = records.findIndex(r => r.id === id);
             if (index !== -1) {
-                localRecords[index].status = newStatus;
-                localStorage.setItem("records", JSON.stringify(localRecords));
-                syncToSheet({ action: "update", id: id, status: newStatus });
-                renderList(localRecords);
+                records[index].status = newStatus;
+                localStorage.setItem("records", JSON.stringify(records));
+                await renderList(records);
+                syncToSheet({ action: "update", id: id, changes: { status: newStatus } });
             }
         }
 
         async function deleteRecord(id) {
-            if(confirm("確定要刪除這個物品嗎？")) {
-                localRecords = localRecords.filter(r => r.id !== id);
-                localStorage.setItem("records", JSON.stringify(localRecords));
+            if (confirm('確定要下架並刪除此物品嗎？')) {
+                let records = await loadData();
+                records = records.filter(r => r.id !== id);
+                localStorage.setItem("records", JSON.stringify(records));
+                await renderList(records);
                 syncToSheet({ action: "delete", id: id });
-                renderList(localRecords);
             }
         }
 
-        // 初始化
-        window.onload = () => {
-            loadData().then(() => renderList());
+        // --- AI Summary Functions ---
+        async function askAI(userPrompt) {
+            const res = await fetch(APPS_SCRIPT_URL, {
+                method: "POST",
+                headers: { "Content-Type": "text/plain" },
+                body: JSON.stringify({ action: "askAI", prompt: userPrompt })
+            });
+            const data = await res.json();
+            return data.result || data.error || "AI 沒有回應";
+        }
+
+        async function handleAISummary() {
+            const btn = document.getElementById('aiBtn');
+            const text = document.getElementById('aiBtnText');
+            btn.disabled = true;
+            text.textContent = '分析市集中...';
+            try {
+                const records = await loadData();
+                if (records.length === 0) { alert('目前沒有二手物品資料可以分析。'); return; }
+                
+                const summaryInput = records.slice(0, 30).map(r =>
+                    `[${r.category}] 名稱: ${r.title}, 價格: MOP ${r.price}, 描述: ${r.description}`
+                ).join('\n');
+                
+                const prompt = '以下是校園二手交換平臺目前的上架物品列表。請用繁體中文，用 3-5 句概括目前同學們最主要出清的物品類型、價格範圍落點、以及給買家或賣家的實用市集建議:\n\n' + summaryInput;
+                
+                const result = await askAI(prompt);
+                alert(result);
+            } catch (e) {
+                alert('AI 分析出錯：' + e.message);
+            } finally {
+                btn.disabled = false;
+                text.textContent = 'AI 市集摘要';
+            }
+        }
+
+        // Initialize display
+        window.onload = async () => {
+            updateLoginUI(); 
+            await renderList();
+            lucide.createIcons();
         };
+
+        // 點擊 Modal 外圍自動關閉
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal-overlay')) {
+                event.target.style.display = 'none';
+                if(event.target.id === 'chatModal') activeChatContext = null;
+            }
+        }
     </script>
 </body>
 </html>
