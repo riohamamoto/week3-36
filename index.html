@@ -198,7 +198,8 @@
 
     <script>
         // --- Configuration ---
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwJrBsnoZlYOLoHlXGjbbQEJfrF8hAIKIth1xbuTumwvEI3bPXlkrfBd9u_duE0qPI7/exec"; 
+        // 已經為你替換上最新的 Apps Script URL
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyhyFIoITZI0k0mxT6RFZQ0qEbUj9nikzVmKa6LO-khrLfYooAg_BRP0LLOWTHvO3eh/exec"; 
 
         // Global State
         let currentStatusFilter = '全部';
@@ -211,24 +212,23 @@
          * 同步資料到 Google Sheet 的 Helper
          */
         async function syncToSheet(payload) {
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbwJrBsnoZlYOLoHlXGjbbQEJfrF8hAIKIth1xbuTumwvEI3bPXlkrfBd9u_duE0qPI7/exec")) {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("PASTE_YOUR_URL_HERE")) {
                 console.warn("Apps Script URL 未設定，僅同步至 localStorage");
                 return;
             }
             try {
                 await fetch(APPS_SCRIPT_URL, {
                     method: 'POST',
-                    mode: 'no-cors', 
                     headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify(payload)
                 });
             } catch (err) {
-                console.warn("Google Sheet 同步失敗:", err);
+                console.error("Google Sheet 同步失敗:", err);
             }
         }
 
         /**
-         * 欄位相容標準化器 (移除了吐槽牆相容欄位)
+         * 欄位相容標準化器
          */
         function normalizeRecord(record) {
             return {
@@ -247,14 +247,14 @@
          * 用 GET 從 Sheet 讀取資料
          */
         async function fetchRecordsFromSheet() {
-            if (APPS_SCRIPT_URL.includes("PASTE")) return null;
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("PASTE_YOUR_URL_HERE")) return null;
             try {
                 const res = await fetch(APPS_SCRIPT_URL);
                 const data = await res.json();
                 const rawArray = data.records || (Array.isArray(data) ? data : null);
                 return Array.isArray(rawArray) ? rawArray.map(normalizeRecord) : null;
             } catch (e) {
-                console.warn("從 Sheet 讀取失敗", e);
+                console.warn("從 Sheet 讀取失敗:", e);
                 return null;
             }
         }
