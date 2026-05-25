@@ -122,7 +122,7 @@
                 </div>
                 <div class="w-px h-10 bg-slate-200"></div>
                 <div class="flex flex-col min-w-[70px]">
-                    <span class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Total 總數量</span>
+                    <span class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Total 總總數</span>
                     <span id="statTotal" class="text-3xl font-black text-slate-800">0</span>
                 </div>
             </div>
@@ -257,7 +257,8 @@
                 </button>
             </div>
             
-            <div id="chatMessages" class="flex-1 p-4 overflow-y-auto bg-white flex flex-col gap-3"></div>
+            <div id="chatMessages" class="flex-1 p-4 overflow-y-auto bg-white flex flex-col gap-3">
+                </div>
 
             <div class="p-3 bg-slate-50 border-t border-slate-100 flex gap-2">
                 <input type="text" id="chatInput" placeholder="輸入訊息..." class="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500" onkeypress="if(event.key === 'Enter') sendChatMessage()">
@@ -268,7 +269,7 @@
         </div>
     </div>
 
-    <div id="imageLightbox" class="modal-overlay flex items-center justify-center cursor-zoom-out" onclick="closeModal('imageLightbox')">
+    <div id="imageLightbox" class="modal-overlay items-center justify-center cursor-zoom-out" onclick="closeModal('imageLightbox')">
         <img id="lightboxImg" src="" class="max-w-[90vw] max-h-[90vh] object-contain rounded-xl shadow-2xl" onclick="event.stopPropagation()">
         <button class="absolute top-6 right-6 text-white/70 hover:text-white bg-black/50 p-2 rounded-full transition-all">
             <i data-lucide="x" class="w-6 h-6"></i>
@@ -276,7 +277,7 @@
     </div>
 
     <script>
-        // --- 修正：已填上您最新的 Apps Script 網址 ---
+        // --- Configuration ---
         const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLWnbfopyKt7yNakdNqyRhuEuFy-4JpwyOXBAXBiH8g0z3QNVoxDFzvWhbYF9lEY13/exec"; 
 
         // Global State
@@ -286,8 +287,11 @@
         let currentUser = null; 
         let wishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
         
+        // Chat State
         let activeChatContext = null; 
         let chatHistory = JSON.parse(localStorage.getItem("chatHistory") || "{}");
+
+        // --- Core Functions ---
 
         function decodeJwt(token) {
             try {
@@ -297,7 +301,9 @@
                     return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
                 }).join(''));
                 return JSON.parse(jsonPayload);
-            } catch(e) { return null; }
+            } catch(e) {
+                return null;
+            }
         }
 
         function handleCredentialResponse(response) {
@@ -350,7 +356,9 @@
         function toggleWishlist(id) {
             if (wishlist.includes(id)) {
                 wishlist = wishlist.filter(item => item !== id);
-            } else { wishlist.push(id); }
+            } else {
+                wishlist.push(id);
+            }
             localStorage.setItem("wishlist", JSON.stringify(wishlist));
             renderList(localRecords);
         }
@@ -362,15 +370,69 @@
             });
         }
 
-        function openChat(itemId, sellerEmail, sellerName, sellerPic, itemTitle) {
-            if (!currentUser) { alert("請先登入後再聯絡賣家！"); return; }
-            if (currentUser.email === sellerEmail) { alert("這是您自己發佈的物品喔！"); return; }
+        // --- ⚠️ 核心修正 1：加強聊天系統邏輯，支援賣家與買家身分自動適配 ---
+        function openChat(itemId, sellerEmail, sellerName, sellerPic, itemTitle, buyerEmailForSeller = null) {
+            if (!currentUser) {
+                alert("請先登入後再聯絡賣家！");
+                return;
+            }
+
+            let buyerEmail = currentUser.email;
+            let isSellerViewing = false;
+
+            // 判斷是否為賣家從物件管理區塊點擊買家頭像進來的
+            if (buyerEmailForSeller) {
+                buyerEmail = buyerEmailForSeller;
+                isSellerViewing = true;
+            }
+
+            if (!isSellerViewing && currentUser.email === sellerEmail) {
+                alert("這是您自己發佈的物品喔！");
+                return;
+            }
             
-            const roomId = `${itemId}_${currentUser.email}`;
-            activeChatContext = { roomId, sellerEmail, sellerName, sellerPic, itemTitle };
+            // 生成基於物品與買家唯一對應的聊天室 ID
+            const roomId = `${itemId}_${buyerEmail}`;
             
-            document.getElementById('chatAvatar').src = sellerPic || 'https://via.placeholder.com/40';
-            document.getElementById('chatUserName').textContent = sellerName;
+            // 初始化或轉換格式
+            if (!chatHistory[roomId]) {
+                chatHistory[roomId] = { metadata: {}, messages: [] };
+            } else if (Array.isArray(chatHistory[roomId])) {
+                chatHistory[roomId] = { metadata: {}, messages: chatHistory[roomId] };
+            }
+            
+            // 自動儲存或補齊目前聊天室的元數據資訊，以便賣家與買家追蹤
+            chatHistory[roomId].metadata = {
+                itemId: itemId,
+                itemTitle: itemTitle,
+                sellerEmail: sellerEmail,
+                sellerName: sellerName,
+                sellerPic: sellerPic,
+                buyerEmail: buyerEmail,
+                buyerName: isSellerViewing ? (chatHistory[roomId].metadata.buyerName || "買家同學") : currentUser.name,
+                buyerPic: isSellerViewing ? (chatHistory[roomId].metadata.buyerPic || "") : currentUser.picture
+            };
+            localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+
+            activeChatContext = { 
+                roomId, 
+                sellerEmail, 
+                sellerName, 
+                sellerPic, 
+                itemTitle,
+                buyerEmail,
+                buyerName: chatHistory[roomId].metadata.buyerName,
+                buyerPic: chatHistory[roomId].metadata.buyerPic
+            };
+            
+            // 根據檢視者身分動態切換頂端標題與頭像
+            if (isSellerViewing) {
+                document.getElementById('chatAvatar').src = chatHistory[roomId].metadata.buyerPic || 'https://via.placeholder.com/40';
+                document.getElementById('chatUserName').textContent = `${chatHistory[roomId].metadata.buyerName} (買家)`;
+            } else {
+                document.getElementById('chatAvatar').src = sellerPic || 'https://via.placeholder.com/40';
+                document.getElementById('chatUserName').textContent = `${sellerName} (賣家)`;
+            }
             document.getElementById('chatItemTitle').textContent = `關於: ${itemTitle}`;
             
             renderChatMessages();
@@ -381,7 +443,9 @@
             const container = document.getElementById('chatMessages');
             container.innerHTML = '';
             
-            const messages = chatHistory[activeChatContext.roomId] || [];
+            const chatData = chatHistory[activeChatContext.roomId];
+            const messages = chatData ? (Array.isArray(chatData) ? chatData : (chatData.messages || [])) : [];
+
             if(messages.length === 0) {
                 container.innerHTML = `<div class="text-center text-xs text-slate-400 my-auto">這裡是對話的開端，打個招呼吧！</div>`;
                 return;
@@ -401,6 +465,7 @@
                 `;
                 container.innerHTML += msgHtml;
             });
+            // 滾動到底部
             container.scrollTop = container.scrollHeight;
         }
 
@@ -410,7 +475,9 @@
             if(!text || !activeChatContext) return;
 
             if (!chatHistory[activeChatContext.roomId]) {
-                chatHistory[activeChatContext.roomId] = [];
+                chatHistory[activeChatContext.roomId] = { metadata: {}, messages: [] };
+            } else if (Array.isArray(chatHistory[activeChatContext.roomId])) {
+                chatHistory[activeChatContext.roomId] = { metadata: {}, messages: chatHistory[activeChatContext.roomId] };
             }
 
             const newMessage = {
@@ -419,41 +486,49 @@
                 timestamp: new Date().toISOString()
             };
 
-            chatHistory[activeChatContext.roomId].push(newMessage);
+            chatHistory[activeChatContext.roomId].messages.push(newMessage);
             localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
             
             input.value = '';
             renderChatMessages();
+            renderList(localRecords); // 立即重刷大列表，即時更新賣家後台數字與買家標籤
         }
 
+        // --- View Counter Logic ---
         function recordView(id, imageUrl) {
+            // 點擊圖片時記錄一次瀏覽並放大
             let records = JSON.parse(localStorage.getItem("records") || "[]");
             let item = records.find(r => r.id === id);
             if(item) {
                 item.views = (item.views || 0) + 1;
                 localStorage.setItem("records", JSON.stringify(records));
                 
+                // 本地更新 state 避免需要完整重載
                 const idx = localRecords.findIndex(r => r.id === id);
                 if(idx > -1) localRecords[idx].views = item.views;
                 
+                // 更新畫面上的數字
                 const viewSpan = document.getElementById(`view-count-${id}`);
                 if(viewSpan) viewSpan.textContent = item.views;
             }
 
+            // 打開圖片放大鏡
             if(imageUrl) {
                 document.getElementById('lightboxImg').src = imageUrl;
                 openModal('imageLightbox');
             }
         }
 
-        // --- 修正：加入了 redirect: "follow" 確保資料同步穩定 ---
+        // --- Data Handling ---
         async function syncToSheet(payload) {
-            if (!APPS_SCRIPT_URL) return;
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbxYXZK3GJqrcLJ_cHaod_2oe7csAZh7tYMIIoDdILN_UK39_W5yA6ZHT8VDOVvVG76e/exec")) {
+                console.warn("Apps Script URL 未設定");
+                return;
+            }
             try {
                 await fetch(APPS_SCRIPT_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    redirect: 'follow', // 關鍵修正
+                    headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify(payload)
                 });
             } catch (err) {
@@ -474,15 +549,15 @@
                 condition: record.condition || record.Condition || "九成新",
                 contact: record.contact || record.Contact || "未提供",
                 views: record.views || 0,
+                // 發佈者綁定 (相容舊資料)
                 publisher: record.publisher || { name: "匿名同學", email: "", picture: "" } 
             };
         }
 
-        // --- 修正：GET 請求也確保重定向跟隨 ---
         async function fetchRecordsFromSheet() {
-            if (!APPS_SCRIPT_URL) return null;
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbxYXZK3GJqrcLJ_cHaod_2oe7csAZh7tYMIIoDdILN_UK39_W5yA6ZHT8VDOVvVG76e/exec")) return null;
             try {
-                const res = await fetch(APPS_SCRIPT_URL, { redirect: 'follow' });
+                const res = await fetch(APPS_SCRIPT_URL);
                 const data = await res.json();
                 const rawArray = data.records || (Array.isArray(data) ? data : null);
                 return Array.isArray(rawArray) ? rawArray.map(normalizeRecord) : null;
@@ -512,6 +587,9 @@
         }
 
         async function renderList(recordsOverride) {
+            // 即時同步讀取聊天紀錄
+            chatHistory = JSON.parse(localStorage.getItem("chatHistory") || "{}");
+
             const allRecords = recordsOverride || await loadData();
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
             const grid = document.getElementById('itemsGrid');
@@ -526,14 +604,20 @@
                 return statusMatch && categoryMatch && searchMatch;
             });
 
-            if (sortVal === 'priceLow') { filtered.sort((a, b) => a.price - b.price); }
-            else if (sortVal === 'priceHigh') { filtered.sort((a, b) => b.price - a.price); }
-            else if (sortVal === 'mostViewed') { filtered.sort((a, b) => (b.views || 0) - (a.views || 0)); }
-            else { filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); }
+            if (sortVal === 'priceLow') {
+                filtered.sort((a, b) => a.price - b.price);
+            } else if (sortVal === 'priceHigh') {
+                filtered.sort((a, b) => b.price - a.price);
+            } else if (sortVal === 'mostViewed') {
+                filtered.sort((a, b) => (b.views || 0) - (a.views || 0));
+            } else {
+                filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            }
 
             document.getElementById('statActive').innerText = allRecords.filter(r => r.status === 'active').length;
             document.getElementById('statDone').innerText = allRecords.filter(r => r.status === 'done').length;
             document.getElementById('statTotal').innerText = allRecords.length;
+
             document.getElementById('wishlistCountBadge').classList.toggle('hidden', wishlist.length === 0);
 
             grid.innerHTML = '';
@@ -546,6 +630,7 @@
 
             filtered.forEach(item => {
                 const isFavorite = wishlist.includes(item.id);
+                // 確認是否為發佈者本人
                 const isOwner = currentUser && item.publisher && currentUser.email === item.publisher.email && currentUser.email !== "";
                 
                 const statusBadge = item.status === 'active' 
@@ -560,6 +645,26 @@
                 const safePublisherPic = item.publisher?.picture || "https://via.placeholder.com/20";
                 const safePublisherEmail = item.publisher?.email || "";
 
+                // ⚠️ 核心修正 1 (續)：掃描本地聊天歷史，抓出跟此物品有關且有對話內容的所有買家
+                const itemChats = [];
+                Object.keys(chatHistory).forEach(roomId => {
+                    let chatObj = chatHistory[roomId];
+                    let mData = chatObj.metadata || {};
+                    let messages = Array.isArray(chatObj) ? chatObj : (chatObj.messages || []);
+                    let rIdParts = roomId.split('_');
+                    let matchId = mData.itemId || rIdParts[0];
+                    let buyerEmail = mData.buyerEmail || rIdParts[1];
+
+                    if (matchId === item.id && messages.length > 0) {
+                        itemChats.push({
+                            roomId: roomId,
+                            buyerEmail: buyerEmail,
+                            buyerName: mData.buyerName || "買家同學",
+                            buyerPic: mData.buyerPic || "https://via.placeholder.com/20"
+                        });
+                    }
+                });
+
                 const cardHTML = `
                     <div class="group bg-white rounded-2xl border border-slate-100 overflow-hidden hover:shadow-xl hover:shadow-indigo-100/40 hover:-translate-y-1 transition-all duration-300 flex flex-col h-full relative">
                         <div class="relative h-44 overflow-hidden bg-slate-50 cursor-zoom-in" onclick="recordView('${item.id}', '${item.imageUrl || ''}')" title="點擊放大圖片">
@@ -567,7 +672,9 @@
                                 ? `<img src="${item.imageUrl}" alt="${item.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">`
                                 : `<div class="w-full h-full flex items-center justify-center text-slate-300"><i data-lucide="image" class="w-10 h-10"></i></div>`
                             }
-                            <div class="absolute top-3 left-3 z-10">${statusBadge}</div>
+                            <div class="absolute top-3 left-3 z-10">
+                                ${statusBadge}
+                            </div>
                             <div class="absolute top-3 right-3 z-10 flex flex-col gap-2">
                                 <button onclick="event.stopPropagation(); toggleWishlist('${item.id}')" class="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-sm text-slate-400 hover:text-rose-500 transition-colors">
                                     <i data-lucide="heart" class="w-4 h-4 ${isFavorite ? 'fill-rose-500 text-rose-500' : ''}"></i>
@@ -586,13 +693,36 @@
                                 <h3 class="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1">${item.title}</h3>
                                 <span class="bg-indigo-50 text-indigo-600 text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0">${item.category}</span>
                             </div>
+                            
                             <div class="flex gap-1.5 mb-3">
                                 <span class="text-[10px] font-semibold px-2 py-0.5 rounded ${conditionClass}">${item.condition}</span>
                             </div>
+
                             <p class="text-slate-500 text-xs line-clamp-2 mb-4 h-8">${item.description}</p>
                             
+                            ${isOwner ? `
+                                <div class="mb-4 p-2 bg-slate-50/80 border border-slate-100 rounded-xl">
+                                    <p class="text-[10px] font-bold text-indigo-600 mb-1 flex items-center gap-1">
+                                        <i data-lucide="messages-square" class="w-3 h-3"></i> 買家諮詢 (${itemChats.length})
+                                    </p>
+                                    ${itemChats.length > 0 ? `
+                                        <div class="flex flex-wrap gap-1 max-h-16 overflow-y-auto no-scrollbar">
+                                            ${itemChats.map(c => `
+                                                <button onclick="event.stopPropagation(); openChat('${item.id}', '${safePublisherEmail}', '${safePublisherName}', '${safePublisherPic}', '${item.title}', '${c.buyerEmail}')" class="flex items-center gap-1 text-[10px] bg-white hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 border border-slate-200 rounded-lg px-2 py-1 transition-all shadow-sm">
+                                                    <img src="${c.buyerPic}" class="w-3.5 h-3.5 rounded-full object-cover">
+                                                    <span class="truncate max-w-[60px]">${c.buyerName}</span>
+                                                </button>
+                                            `).join('')}
+                                        </div>
+                                    ` : `
+                                        <p class="text-[10px] text-slate-400">目前尚無訊息</p>
+                                    `}
+                                </div>
+                            ` : ''}
+
                             <div class="flex items-center justify-between mb-4 mt-auto">
                                 <span class="text-lg font-black text-slate-900">MOP ${item.price}</span>
+                                
                                 <div class="flex gap-1">
                                     ${!isOwner ? `
                                         <button onclick="openChat('${item.id}', '${safePublisherEmail}', '${safePublisherName}', '${safePublisherPic}', '${item.title}')" class="flex items-center gap-1 text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-2.5 py-1.5 rounded-lg transition-colors" title="開啟聊天室聯絡賣家">
@@ -601,6 +731,7 @@
                                     ` : `
                                         <span class="flex items-center gap-1 text-[11px] font-bold bg-slate-100 text-slate-400 px-2.5 py-1.5 rounded-lg">您的物品</span>
                                     `}
+
                                     ${isOwner ? `
                                         <div class="flex border-l border-slate-100 pl-1 ml-1 gap-0.5">
                                             ${item.status === 'active' ? `
@@ -636,9 +767,18 @@
             lucide.createIcons();
         }
 
+        // --- UI Modal Controls ---
+        // ⚠️ 核心修正 2 (續)：修改 openModal 邏輯，對圖片放大鏡組件提供正確的 flex 布局支援
         function openModal(modalId) {
-            if(modalId === 'postModal' && !currentUser) { alert('請先完成 Google 登入後再發佈物品！'); return; }
-            document.getElementById(modalId).style.display = 'block';
+            if(modalId === 'postModal' && !currentUser) { 
+                alert('請先完成 Google 登入後再發佈物品！'); 
+                return; 
+            }
+            if (modalId === 'imageLightbox') {
+                document.getElementById(modalId).style.display = 'flex';
+            } else {
+                document.getElementById(modalId).style.display = 'block';
+            }
         }
 
         function closeModal(modalId) {
@@ -650,7 +790,9 @@
         async function handlePost(e) {
             e.preventDefault();
             if(!currentUser) return;
+
             const formData = new FormData(e.target);
+            
             const newRecord = {
                 id: Date.now() + "_" + Math.random().toString(36).slice(2,6),
                 createdAt: new Date().toISOString(),
@@ -663,8 +805,14 @@
                 condition: formData.get('condition'), 
                 contact: formData.get('contact'),
                 views: 0,
-                publisher: { name: currentUser.name, email: currentUser.email, picture: currentUser.picture }
+                // 寫入發佈者身份 (需求1)
+                publisher: {
+                    name: currentUser.name,
+                    email: currentUser.email,
+                    picture: currentUser.picture
+                }
             };
+
             await saveData(newRecord);
             closeModal('postModal');
         }
@@ -676,6 +824,7 @@
                 const isActive = (status === '全部' && btn.innerText === '全部') || 
                                  (status === 'active' && btn.innerText.includes('Active')) || 
                                  (status === 'done' && btn.innerText.includes('Done'));
+                
                 btn.className = isActive 
                     ? "status-btn px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200"
                     : "status-btn px-4 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-500 hover:text-slate-800";
@@ -716,12 +865,11 @@
             }
         }
 
-        // --- 修正：向後端請求 AI 分析加入 redirect: "follow" ---
+        // --- AI Summary Functions ---
         async function askAI(userPrompt) {
             const res = await fetch(APPS_SCRIPT_URL, {
                 method: "POST",
-                headers: { "Content-Type": "text/plain;charset=utf-8" },
-                redirect: 'follow', // 關鍵修正
+                headers: { "Content-Type": "text/plain" },
                 body: JSON.stringify({ action: "askAI", prompt: userPrompt })
             });
             const data = await res.json();
@@ -760,6 +908,7 @@
             lucide.createIcons();
         };
 
+        // 點擊 Modal 外圍自動關閉
         window.onclick = function(event) {
             if (event.target.classList.contains('modal-overlay')) {
                 event.target.style.display = 'none';
