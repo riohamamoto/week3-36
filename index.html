@@ -242,22 +242,6 @@
         </div>
     </div>
 
-    <div id="sellerChatListModal" class="modal-overlay">
-        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 flex flex-col h-[400px] overflow-hidden">
-            <div class="bg-slate-50 border-b border-slate-100 p-4 flex justify-between items-center">
-                <div class="flex items-center gap-2">
-                    <i data-lucide="message-square" class="text-indigo-600 w-5 h-5"></i>
-                    <h3 class="font-bold text-slate-900 text-sm">買家諮詢列表</h3>
-                </div>
-                <button onclick="closeModal('sellerChatListModal')" class="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-200 rounded-lg transition-all">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-            <div id="sellerChatList" class="flex-1 p-4 overflow-y-auto bg-white flex flex-col gap-2">
-                </div>
-        </div>
-    </div>
-
     <div id="chatModal" class="modal-overlay">
         <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 flex flex-col h-[500px] overflow-hidden">
             <div class="bg-slate-50 border-b border-slate-100 p-4 flex justify-between items-center">
@@ -306,7 +290,7 @@
         // Chat State
         let activeChatContext = null; 
         let chatHistory = JSON.parse(localStorage.getItem("chatHistory") || "{}");
-        let chatInterval = null; // 背景自動同步計時器
+        let chatInterval = null; // 全域定時器：控制實時同步更新
 
         // --- Core Functions ---
 
@@ -393,116 +377,48 @@
                 alert("請先登入後再聯絡賣家！");
                 return;
             }
-            if (currentUser.email === sellerEmail) {
-                alert("這是您自己發佈的物品喔！");
-                return;
-            }
             
-            const roomId = `${itemId}_${currentUser.email}`;
-            activeChatContext = { 
-                roomId, 
-                sellerEmail, 
-                sellerName, 
-                sellerPic, 
-                itemTitle,
-                buyerEmail: currentUser.email,
-                buyerName: currentUser.name
-            };
+            // 修正點：取消原本「自己不能聯絡自己」的限制，讓賣家可以點擊進入交流群
+            const isOwner = currentUser.email === sellerEmail;
             
-            document.getElementById('chatAvatar').src = sellerPic || 'https://via.placeholder.com/40';
-            document.getElementById('chatUserName').textContent = sellerName;
+            // 修正點：將 roomId 直接鎖定為 itemId (商品專屬互動室)，確保買賣雙方在不同手機登入時進入同一個房間
+            const roomId = itemId;
+            activeChatContext = { roomId, sellerEmail, sellerName, sellerPic, itemTitle };
+            
+            document.getElementById('chatAvatar').src = isOwner ? currentUser.picture : (sellerPic || 'https://via.placeholder.com/40');
+            document.getElementById('chatUserName').textContent = isOwner ? "買家交流對話" : sellerName;
             document.getElementById('chatItemTitle').textContent = `關於: ${itemTitle}`;
             
+            // 先渲染本地快照(提供流暢感)
             renderChatMessages();
             openModal('chatModal');
-            startChatPolling();
-        }
 
-        // 賣家端打開特定買家的聊天室
-        function openChatFromSeller(roomId, buyerEmail, buyerName, itemTitle) {
-            activeChatContext = {
-                roomId,
-                sellerEmail: currentUser.email,
-                sellerName: currentUser.name,
-                sellerPic: currentUser.picture,
-                itemTitle,
-                buyerEmail: buyerEmail,
-                buyerName: buyerName
-            };
-
-            document.getElementById('chatAvatar').src = 'https://via.placeholder.com/40';
-            document.getElementById('chatUserName').textContent = `${buyerName} (買家諮詢)`;
-            document.getElementById('chatItemTitle').textContent = `關於: ${itemTitle}`;
-
-            renderChatMessages();
-            openModal('chatModal');
-            startChatPolling();
-        }
-
-        // 賣家打開買家諮詢清單
-        function openSellerChatList(itemId, itemTitle) {
-            const container = document.getElementById('sellerChatList');
-            container.innerHTML = '';
-            let hasChats = false;
-
-            Object.keys(chatHistory).forEach(roomId => {
-                if (roomId.startsWith(itemId + "_")) {
-                    hasChats = true;
-                    const buyerEmail = roomId.split('_')[1];
-                    const messages = chatHistory[roomId] || [];
-                    const lastMessage = messages[messages.length - 1]?.text || "尚無訊息";
-                    
-                    let buyerName = "買家同學";
-                    messages.forEach(m => {
-                        if (m.senderEmail === buyerEmail && m.senderName) buyerName = m.senderName;
-                    });
-
-                    const itemHtml = `
-                        <div onclick="closeModal('sellerChatListModal'); openChatFromSeller('${roomId}', '${buyerEmail}', '${buyerName}', '${itemTitle}')" class="flex items-center justify-between p-3 bg-slate-50 hover:bg-indigo-50 rounded-xl cursor-pointer transition-colors border border-slate-100">
-                            <div class="flex items-center gap-3">
-                                <div class="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xs">
-                                    ${buyerName[0]}
-                                </div>
-                                <div class="max-w-[240px]">
-                                    <h4 class="font-bold text-slate-800 text-xs">${buyerName}</h4>
-                                    <p class="text-[11px] text-slate-400 truncate">${lastMessage}</p>
-                                </div>
-                            </div>
-                            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
-                        </div>
-                    `;
-                    container.innerHTML += itemHtml;
-                }
-            });
-
-            if (!hasChats) {
-                container.innerHTML = `<div class="text-center text-xs text-slate-400 my-auto py-8">目前還沒有買家詢問這件物品喔！</div>`;
-            }
-
-            openModal('sellerChatListModal');
-            lucide.createIcons();
-        }
-
-        // 定時每5秒異步獲取最新的伺服器聊天數據庫
-        function startChatPolling() {
+            // 實時更新：先同步拉取一次，並建立每 3 秒自動同步的定時器
             if (chatInterval) clearInterval(chatInterval);
-            chatInterval = setInterval(async () => {
-                await fetchChatFromServer();
-                if (activeChatContext) renderChatMessages();
-            }, 5000);
+            fetchChatMessagesFromServer();
+            chatInterval = setInterval(fetchChatMessagesFromServer, 3000);
         }
 
-        async function fetchChatFromServer() {
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("AKfycbxYXZK3GJqrcLJ_cHaod_2oe7csAZh7tYMIIoDdILN_UK39_W5yA6ZHT8VDOVvVG76e/exec")) return;
+        // 實時更新：從 Google Sheet 雲端下載最新聊天訊息
+        async function fetchChatMessagesFromServer() {
+            if (!activeChatContext || !APPS_SCRIPT_URL) return;
             try {
-                const res = await fetch(APPS_SCRIPT_URL);
+                const res = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({
+                        action: "getChat",
+                        roomId: activeChatContext.roomId
+                    })
+                });
                 const data = await res.json();
-                if (data && data.chats) {
-                    chatHistory = data.chats;
+                if (data && data.messages) {
+                    chatHistory[activeChatContext.roomId] = data.messages;
                     localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+                    renderChatMessages();
                 }
             } catch (e) {
-                console.error("背景刷新聊天紀錄同步失敗", e);
+                console.warn("無法與雲端聊天同步，目前使用本地暫存狀態。");
             }
         }
 
@@ -530,6 +446,7 @@
                 `;
                 container.innerHTML += msgHtml;
             });
+            // 保持滾動條在底部
             container.scrollTop = container.scrollHeight;
         }
 
@@ -544,27 +461,30 @@
 
             const newMessage = {
                 senderEmail: currentUser.email,
-                senderName: currentUser.name,
                 text: text,
                 timestamp: new Date().toISOString()
             };
 
+            // 1. 本地預先載入，維持流暢體驗
             chatHistory[activeChatContext.roomId].push(newMessage);
             localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
-            
-            // 同步回傳給 Google Sheets 雲端儲存
-            syncToSheet({
-                action: "sendChat",
-                roomId: activeChatContext.roomId,
-                message: newMessage,
-                itemId: activeChatContext.roomId.split('_')[0],
-                buyerEmail: activeChatContext.buyerEmail,
-                sellerEmail: activeChatContext.sellerEmail,
-                itemTitle: activeChatContext.itemTitle
-            });
-
-            input.value = '';
             renderChatMessages();
+            input.value = '';
+
+            // 2. 同步發送到雲端後端，讓對方的裝置可進行實時更新
+            try {
+                await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({
+                        action: "sendChat",
+                        roomId: activeChatContext.roomId,
+                        message: newMessage
+                    })
+                });
+            } catch (err) {
+                console.error("雲端訊息傳送失敗:", err);
+            }
         }
 
         // --- View Counter Logic ---
@@ -590,7 +510,7 @@
 
         // --- Data Handling ---
         async function syncToSheet(payload) {
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("AKfycbxYXZK3GJqrcLJ_cHaod_2oe7csAZh7tYMIIoDdILN_UK39_W5yA6ZHT8VDOVvVG76e/exec")) {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbxYXZK3GJqrcLJ_cHaod_2oe7csAZh7tYMIIoDdILN_UK39_W5yA6ZHT8VDOVvVG76e/exec")) {
                 console.warn("Apps Script URL 未設定");
                 return;
             }
@@ -623,17 +543,10 @@
         }
 
         async function fetchRecordsFromSheet() {
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("AKfycbxYXZK3GJqrcLJ_cHaod_2oe7csAZh7tYMIIoDdILN_UK39_W5yA6ZHT8VDOVvVG76e/exec")) return null;
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbxYXZK3GJqrcLJ_cHaod_2oe7csAZh7tYMIIoDdILN_UK39_W5yA6ZHT8VDOVvVG76e/exec")) return null;
             try {
                 const res = await fetch(APPS_SCRIPT_URL);
                 const data = await res.json();
-                
-                // 獲取同步數據庫中保存的所有歷史對話
-                if (data && data.chats) {
-                    chatHistory = data.chats;
-                    localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
-                }
-
                 const rawArray = data.records || (Array.isArray(data) ? data : null);
                 return Array.isArray(rawArray) ? rawArray.map(normalizeRecord) : null;
             } catch (e) {
@@ -760,8 +673,8 @@
                                             <i data-lucide="message-circle" class="w-3.5 h-3.5"></i> 聯絡賣家
                                         </button>
                                     ` : `
-                                        <button onclick="openSellerChatList('${item.id}', '${item.title}')" class="flex items-center gap-1 text-[11px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-700 px-2.5 py-1.5 rounded-lg transition-colors" title="查看買家諮詢">
-                                            <i data-lucide="message-square" class="w-3.5 h-3.5"></i> 買家諮詢
+                                        <button onclick="openChat('${item.id}', '${safePublisherEmail}', '${safePublisherName}', '${safePublisherPic}', '${item.title}')" class="flex items-center gap-1 text-[11px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-600 px-2.5 py-1.5 rounded-lg transition-colors" title="查看並回覆買家訊息">
+                                            <i data-lucide="message-circle" class="w-3.5 h-3.5"></i> 查看訊息
                                         </button>
                                     `}
 
@@ -814,8 +727,9 @@
             if(modalId === 'postModal') document.getElementById('postForm').reset();
             if(modalId === 'chatModal') {
                 activeChatContext = null;
+                // 修正點：關閉聊天室時，必須清除定時器避免浪費網路資源與記憶體
                 if (chatInterval) {
-                    clearInterval(chatInterval); // 關閉對話框時立即停用背景刷新，節省資源
+                    clearInterval(chatInterval);
                     chatInterval = null;
                 }
             }
@@ -944,7 +858,15 @@
         // 點擊 Modal 外圍自動關閉
         window.onclick = function(event) {
             if (event.target.classList.contains('modal-overlay')) {
-                closeModal(event.target.id);
+                event.target.style.display = 'none';
+                if(event.target.id === 'chatModal') {
+                    activeChatContext = null;
+                    // 修正點：點擊外圍關閉時，也必須正確同步清除計時器
+                    if (chatInterval) {
+                        clearInterval(chatInterval);
+                        chatInterval = null;
+                    }
+                }
             }
         }
     </script>
