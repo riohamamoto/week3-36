@@ -278,6 +278,7 @@
 
     <script>
         // --- Configuration ---
+        // ⚠️ 請記得替換為你最新發佈的 Google Apps Script 網址
         const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLWnbfopyKt7yNakdNqyRhuEuFy-4JpwyOXBAXBiH8g0z3QNVoxDFzvWhbYF9lEY13/exec"; 
 
         // Global State
@@ -289,7 +290,6 @@
         
         // Chat State
         let activeChatContext = null; 
-        let chatHistory = JSON.parse(localStorage.getItem("chatHistory") || "{}");
 
         // --- Core Functions ---
 
@@ -370,69 +370,49 @@
             });
         }
 
-        // --- ⚠️ 核心修正 1：加強聊天系統邏輯，支援賣家與買家身分自動適配 ---
+        // --- ⚠️ 升級點：透過雲端對話系統邏輯，支援賣家與買家身分自動適配 ---
         function openChat(itemId, sellerEmail, sellerName, sellerPic, itemTitle, buyerEmailForSeller = null) {
             if (!currentUser) {
                 alert("請先登入後再聯絡賣家！");
                 return;
             }
 
-            let buyerEmail = currentUser.email;
-            let isSellerViewing = false;
-
-            // 判斷是否為賣家從物件管理區塊點擊買家頭像進來的
-            if (buyerEmailForSeller) {
-                buyerEmail = buyerEmailForSeller;
-                isSellerViewing = true;
-            }
+            let buyerEmail = buyerEmailForSeller || currentUser.email;
+            let isSellerViewing = !!buyerEmailForSeller;
 
             if (!isSellerViewing && currentUser.email === sellerEmail) {
                 alert("這是您自己發佈的物品喔！");
                 return;
             }
             
-            // 生成基於物品與買家唯一對應的聊天室 ID
             const roomId = `${itemId}_${buyerEmail}`;
-            
-            // 初始化或轉換格式
-            if (!chatHistory[roomId]) {
-                chatHistory[roomId] = { metadata: {}, messages: [] };
-            } else if (Array.isArray(chatHistory[roomId])) {
-                chatHistory[roomId] = { metadata: {}, messages: chatHistory[roomId] };
-            }
-            
-            // 自動儲存或補齊目前聊天室的元數據資訊，以便賣家與買家追蹤
-            chatHistory[roomId].metadata = {
-                itemId: itemId,
-                itemTitle: itemTitle,
-                sellerEmail: sellerEmail,
-                sellerName: sellerName,
-                sellerPic: sellerPic,
-                buyerEmail: buyerEmail,
-                buyerName: isSellerViewing ? (chatHistory[roomId].metadata.buyerName || "買家同學") : currentUser.name,
-                buyerPic: isSellerViewing ? (chatHistory[roomId].metadata.buyerPic || "") : currentUser.picture
-            };
-            localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+            const item = localRecords.find(r => r.id === itemId);
+            if(!item) return;
 
-            activeChatContext = { 
-                roomId, 
-                sellerEmail, 
-                sellerName, 
-                sellerPic, 
-                itemTitle,
-                buyerEmail,
-                buyerName: chatHistory[roomId].metadata.buyerName,
-                buyerPic: chatHistory[roomId].metadata.buyerPic
-            };
-            
-            // 根據檢視者身分動態切換頂端標題與頭像
-            if (isSellerViewing) {
-                document.getElementById('chatAvatar').src = chatHistory[roomId].metadata.buyerPic || 'https://via.placeholder.com/40';
-                document.getElementById('chatUserName').textContent = `${chatHistory[roomId].metadata.buyerName} (買家)`;
-            } else {
-                document.getElementById('chatAvatar').src = sellerPic || 'https://via.placeholder.com/40';
-                document.getElementById('chatUserName').textContent = `${sellerName} (賣家)`;
+            // 初始化雲端聊天資料
+            if (!item.chatHistory || typeof item.chatHistory !== 'object') {
+                item.chatHistory = {};
             }
+            if (!item.chatHistory[roomId]) {
+                item.chatHistory[roomId] = {
+                    metadata: {
+                        itemId: itemId, 
+                        sellerEmail: sellerEmail, 
+                        sellerName: sellerName, 
+                        sellerPic: sellerPic, 
+                        buyerEmail: buyerEmail,
+                        buyerName: isSellerViewing ? "買家同學" : currentUser.name,
+                        buyerPic: isSellerViewing ? "" : currentUser.picture
+                    },
+                    messages: []
+                };
+            }
+
+            activeChatContext = { roomId, itemId };
+            
+            const meta = item.chatHistory[roomId].metadata;
+            document.getElementById('chatAvatar').src = isSellerViewing ? (meta.buyerPic || 'https://via.placeholder.com/40') : (sellerPic || 'https://via.placeholder.com/40');
+            document.getElementById('chatUserName').textContent = isSellerViewing ? `${meta.buyerName} (買家)` : `${sellerName} (賣家)`;
             document.getElementById('chatItemTitle').textContent = `關於: ${itemTitle}`;
             
             renderChatMessages();
@@ -443,8 +423,9 @@
             const container = document.getElementById('chatMessages');
             container.innerHTML = '';
             
-            const chatData = chatHistory[activeChatContext.roomId];
-            const messages = chatData ? (Array.isArray(chatData) ? chatData : (chatData.messages || [])) : [];
+            const item = localRecords.find(r => r.id === activeChatContext.itemId);
+            const chatData = item.chatHistory[activeChatContext.roomId];
+            const messages = chatData.messages || [];
 
             if(messages.length === 0) {
                 container.innerHTML = `<div class="text-center text-xs text-slate-400 my-auto">這裡是對話的開端，打個招呼吧！</div>`;
@@ -465,54 +446,41 @@
                 `;
                 container.innerHTML += msgHtml;
             });
-            // 滾動到底部
             container.scrollTop = container.scrollHeight;
         }
 
-        function sendChatMessage() {
+        async function sendChatMessage() {
             const input = document.getElementById('chatInput');
             const text = input.value.trim();
             if(!text || !activeChatContext) return;
 
-            if (!chatHistory[activeChatContext.roomId]) {
-                chatHistory[activeChatContext.roomId] = { metadata: {}, messages: [] };
-            } else if (Array.isArray(chatHistory[activeChatContext.roomId])) {
-                chatHistory[activeChatContext.roomId] = { metadata: {}, messages: chatHistory[activeChatContext.roomId] };
-            }
-
-            const newMessage = {
+            const item = localRecords.find(r => r.id === activeChatContext.itemId);
+            
+            item.chatHistory[activeChatContext.roomId].messages.push({
                 senderEmail: currentUser.email,
                 text: text,
                 timestamp: new Date().toISOString()
-            };
+            });
 
-            chatHistory[activeChatContext.roomId].messages.push(newMessage);
-            localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+            // 觸發雲端更新
+            syncToSheet({ action: "update", id: item.id, changes: { chatHistory: item.chatHistory } });
             
             input.value = '';
             renderChatMessages();
-            renderList(localRecords); // 立即重刷大列表，即時更新賣家後台數字與買家標籤
+            renderList(localRecords); // 刷新介面以更新賣家資訊
         }
 
         // --- View Counter Logic ---
         function recordView(id, imageUrl) {
-            // 點擊圖片時記錄一次瀏覽並放大
-            let records = JSON.parse(localStorage.getItem("records") || "[]");
-            let item = records.find(r => r.id === id);
-            if(item) {
-                item.views = (item.views || 0) + 1;
-                localStorage.setItem("records", JSON.stringify(records));
+            const idx = localRecords.findIndex(r => r.id === id);
+            if(idx > -1) {
+                localRecords[idx].views = (localRecords[idx].views || 0) + 1;
+                syncToSheet({ action: "update", id: id, changes: { views: localRecords[idx].views } });
                 
-                // 本地更新 state 避免需要完整重載
-                const idx = localRecords.findIndex(r => r.id === id);
-                if(idx > -1) localRecords[idx].views = item.views;
-                
-                // 更新畫面上的數字
                 const viewSpan = document.getElementById(`view-count-${id}`);
-                if(viewSpan) viewSpan.textContent = item.views;
+                if(viewSpan) viewSpan.textContent = localRecords[idx].views;
             }
 
-            // 打開圖片放大鏡
             if(imageUrl) {
                 document.getElementById('lightboxImg').src = imageUrl;
                 openModal('imageLightbox');
@@ -549,8 +517,9 @@
                 condition: record.condition || record.Condition || "九成新",
                 contact: record.contact || record.Contact || "未提供",
                 views: record.views || 0,
-                // 發佈者綁定 (相容舊資料)
-                publisher: record.publisher || { name: "匿名同學", email: "", picture: "" } 
+                publisher: record.publisher || { name: "匿名同學", email: "", picture: "" },
+                // 讀取雲端聊天記錄
+                chatHistory: (typeof record.chatHistory === 'object' && record.chatHistory !== null) ? record.chatHistory : {}
             };
         }
 
@@ -569,27 +538,19 @@
         async function loadData() {
             const remote = await fetchRecordsFromSheet();
             if (remote) {
-                localStorage.setItem("records", JSON.stringify(remote));
                 localRecords = remote;
                 return remote;
             }
-            const data = localStorage.getItem("records");
-            localRecords = data ? JSON.parse(data).map(normalizeRecord) : [];
             return localRecords;
         }
 
         async function saveData(newRecord) {
-            const records = await loadData();
-            records.push(newRecord);
-            localStorage.setItem("records", JSON.stringify(records));
+            localRecords.unshift(newRecord);
             syncToSheet({ action: "create", record: newRecord });
-            await renderList(records);
+            await renderList(localRecords);
         }
 
         async function renderList(recordsOverride) {
-            // 即時同步讀取聊天紀錄
-            chatHistory = JSON.parse(localStorage.getItem("chatHistory") || "{}");
-
             const allRecords = recordsOverride || await loadData();
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
             const grid = document.getElementById('itemsGrid');
@@ -630,7 +591,6 @@
 
             filtered.forEach(item => {
                 const isFavorite = wishlist.includes(item.id);
-                // 確認是否為發佈者本人
                 const isOwner = currentUser && item.publisher && currentUser.email === item.publisher.email && currentUser.email !== "";
                 
                 const statusBadge = item.status === 'active' 
@@ -645,25 +605,21 @@
                 const safePublisherPic = item.publisher?.picture || "https://via.placeholder.com/20";
                 const safePublisherEmail = item.publisher?.email || "";
 
-                // ⚠️ 核心修正 1 (續)：掃描本地聊天歷史，抓出跟此物品有關且有對話內容的所有買家
+                // ⚠️ 升級點：從雲端獲取買家對話列表
                 const itemChats = [];
-                Object.keys(chatHistory).forEach(roomId => {
-                    let chatObj = chatHistory[roomId];
-                    let mData = chatObj.metadata || {};
-                    let messages = Array.isArray(chatObj) ? chatObj : (chatObj.messages || []);
-                    let rIdParts = roomId.split('_');
-                    let matchId = mData.itemId || rIdParts[0];
-                    let buyerEmail = mData.buyerEmail || rIdParts[1];
-
-                    if (matchId === item.id && messages.length > 0) {
-                        itemChats.push({
-                            roomId: roomId,
-                            buyerEmail: buyerEmail,
-                            buyerName: mData.buyerName || "買家同學",
-                            buyerPic: mData.buyerPic || "https://via.placeholder.com/20"
-                        });
-                    }
-                });
+                if (typeof item.chatHistory === 'object') {
+                    Object.keys(item.chatHistory).forEach(roomId => {
+                        const chatObj = item.chatHistory[roomId];
+                        if (chatObj.messages && chatObj.messages.length > 0) {
+                            itemChats.push({
+                                roomId: roomId, 
+                                buyerEmail: chatObj.metadata.buyerEmail, 
+                                buyerName: chatObj.metadata.buyerName || "買家同學", 
+                                buyerPic: chatObj.metadata.buyerPic || "https://via.placeholder.com/20"
+                            });
+                        }
+                    });
+                }
 
                 const cardHTML = `
                     <div class="group bg-white rounded-2xl border border-slate-100 overflow-hidden hover:shadow-xl hover:shadow-indigo-100/40 hover:-translate-y-1 transition-all duration-300 flex flex-col h-full relative">
@@ -699,7 +655,7 @@
                             </div>
 
                             <p class="text-slate-500 text-xs line-clamp-2 mb-4 h-8">${item.description}</p>
-                            
+
                             ${isOwner ? `
                                 <div class="mb-4 p-2 bg-slate-50/80 border border-slate-100 rounded-xl">
                                     <p class="text-[10px] font-bold text-indigo-600 mb-1 flex items-center gap-1">
@@ -719,7 +675,7 @@
                                     `}
                                 </div>
                             ` : ''}
-
+                            
                             <div class="flex items-center justify-between mb-4 mt-auto">
                                 <span class="text-lg font-black text-slate-900">MOP ${item.price}</span>
                                 
@@ -768,7 +724,7 @@
         }
 
         // --- UI Modal Controls ---
-        // ⚠️ 核心修正 2 (續)：修改 openModal 邏輯，對圖片放大鏡組件提供正確的 flex 布局支援
+        // ⚠️ 升級點：只有呼叫照片放大鏡時才動態加上 display: flex，完美解決黑色遮罩常駐問題
         function openModal(modalId) {
             if(modalId === 'postModal' && !currentUser) { 
                 alert('請先完成 Google 登入後再發佈物品！'); 
@@ -805,12 +761,12 @@
                 condition: formData.get('condition'), 
                 contact: formData.get('contact'),
                 views: 0,
-                // 寫入發佈者身份 (需求1)
                 publisher: {
                     name: currentUser.name,
                     email: currentUser.email,
                     picture: currentUser.picture
-                }
+                },
+                chatHistory: {} // 新物品初始化空白聊天
             };
 
             await saveData(newRecord);
@@ -845,22 +801,18 @@
         }
 
         async function toggleStatus(id, newStatus) {
-            const records = await loadData();
-            const index = records.findIndex(r => r.id === id);
+            const index = localRecords.findIndex(r => r.id === id);
             if (index !== -1) {
-                records[index].status = newStatus;
-                localStorage.setItem("records", JSON.stringify(records));
-                await renderList(records);
+                localRecords[index].status = newStatus;
+                await renderList(localRecords);
                 syncToSheet({ action: "update", id: id, changes: { status: newStatus } });
             }
         }
 
         async function deleteRecord(id) {
             if (confirm('確定要下架並刪除此物品嗎？')) {
-                let records = await loadData();
-                records = records.filter(r => r.id !== id);
-                localStorage.setItem("records", JSON.stringify(records));
-                await renderList(records);
+                localRecords = localRecords.filter(r => r.id !== id);
+                await renderList(localRecords);
                 syncToSheet({ action: "delete", id: id });
             }
         }
@@ -882,10 +834,9 @@
             btn.disabled = true;
             text.textContent = '分析市集中...';
             try {
-                const records = await loadData();
-                if (records.length === 0) { alert('目前沒有二手物品資料可以分析。'); return; }
+                if (localRecords.length === 0) { alert('目前沒有二手物品資料可以分析。'); return; }
                 
-                const summaryInput = records.slice(0, 30).map(r =>
+                const summaryInput = localRecords.slice(0, 30).map(r =>
                     `[${r.category}] 名稱: ${r.title}, 價格: MOP ${r.price}, 描述: ${r.description}`
                 ).join('\n');
                 
