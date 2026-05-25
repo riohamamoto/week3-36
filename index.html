@@ -242,6 +242,22 @@
         </div>
     </div>
 
+    <div id="sellerChatListModal" class="modal-overlay">
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 flex flex-col h-[400px] overflow-hidden">
+            <div class="bg-slate-50 border-b border-slate-100 p-4 flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="message-square" class="text-indigo-600 w-5 h-5"></i>
+                    <h3 class="font-bold text-slate-900 text-sm">買家諮詢列表</h3>
+                </div>
+                <button onclick="closeModal('sellerChatListModal')" class="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-200 rounded-lg transition-all">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div id="sellerChatList" class="flex-1 p-4 overflow-y-auto bg-white flex flex-col gap-2">
+                </div>
+        </div>
+    </div>
+
     <div id="chatModal" class="modal-overlay">
         <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 flex flex-col h-[500px] overflow-hidden">
             <div class="bg-slate-50 border-b border-slate-100 p-4 flex justify-between items-center">
@@ -257,7 +273,8 @@
                 </button>
             </div>
             
-            <div id="chatMessages" class="flex-1 p-4 overflow-y-auto bg-white flex flex-col gap-3"></div>
+            <div id="chatMessages" class="flex-1 p-4 overflow-y-auto bg-white flex flex-col gap-3">
+                </div>
 
             <div class="p-3 bg-slate-50 border-t border-slate-100 flex gap-2">
                 <input type="text" id="chatInput" placeholder="輸入訊息..." class="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500" onkeypress="if(event.key === 'Enter') sendChatMessage()">
@@ -277,8 +294,7 @@
 
     <script>
         // --- Configuration ---
-        // 請確保填入您新部署後的 Apps Script Web 應用程式網址
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyaWUV4h8bcyqhEyBzJ9k-W_F_kQpJQZIU8AsqXmUXlXKrvFopwmWJVq4ZZHLiyJekv/exec"; 
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxnlO90pnGSvnEOoe05jLx7LCrsBnxlIh07wgDCPkHU5dLbB4gHCh7GCOkCxrx7SALq/exec"; 
 
         // Global State
         let currentStatusFilter = 'active'; 
@@ -289,7 +305,8 @@
         
         // Chat State
         let activeChatContext = null; 
-        let chatInterval = null; // 【新增】用來管理實時輪詢定時器
+        let chatHistory = JSON.parse(localStorage.getItem("chatHistory") || "{}");
+        let chatInterval = null; // 背景自動同步計時器
 
         // --- Core Functions ---
 
@@ -370,7 +387,7 @@
             });
         }
 
-        // --- 【重大更新】動態雲端聊天系統邏輯 ---
+        // --- Chat System Logic ---
         function openChat(itemId, sellerEmail, sellerName, sellerPic, itemTitle) {
             if (!currentUser) {
                 alert("請先登入後再聯絡賣家！");
@@ -381,46 +398,119 @@
                 return;
             }
             
-            // 建立跨瀏覽器唯一的聊天室房號
             const roomId = `${itemId}_${currentUser.email}`;
-            activeChatContext = { roomId, sellerEmail, sellerName, sellerPic, itemTitle };
+            activeChatContext = { 
+                roomId, 
+                sellerEmail, 
+                sellerName, 
+                sellerPic, 
+                itemTitle,
+                buyerEmail: currentUser.email,
+                buyerName: currentUser.name
+            };
             
             document.getElementById('chatAvatar').src = sellerPic || 'https://via.placeholder.com/40';
             document.getElementById('chatUserName').textContent = sellerName;
             document.getElementById('chatItemTitle').textContent = `關於: ${itemTitle}`;
             
-            // 1. 立即跟後端拉取一次最新訊息
-            fetchChatMessagesFromServer();
-            
-            // 2. 開啟定時器每 3 秒自動同步一次後端數據，達成實時聊天效果
-            clearInterval(chatInterval);
-            chatInterval = setInterval(fetchChatMessagesFromServer, 3000);
-            
+            renderChatMessages();
             openModal('chatModal');
+            startChatPolling();
         }
 
-        // 【新增函數】向後端獲取實時聊天數據
-        async function fetchChatMessagesFromServer() {
-            if (!activeChatContext || !APPS_SCRIPT_URL) return;
-            try {
-                const res = await fetch(`${APPS_SCRIPT_URL}?action=getChats&roomId=${encodeURIComponent(activeChatContext.roomId)}`);
-                const data = await res.json();
-                if (data && data.messages) {
-                    renderChatMessages(data.messages);
+        // 賣家端打開特定買家的聊天室
+        function openChatFromSeller(roomId, buyerEmail, buyerName, itemTitle) {
+            activeChatContext = {
+                roomId,
+                sellerEmail: currentUser.email,
+                sellerName: currentUser.name,
+                sellerPic: currentUser.picture,
+                itemTitle,
+                buyerEmail: buyerEmail,
+                buyerName: buyerName
+            };
+
+            document.getElementById('chatAvatar').src = 'https://via.placeholder.com/40';
+            document.getElementById('chatUserName').textContent = `${buyerName} (買家諮詢)`;
+            document.getElementById('chatItemTitle').textContent = `關於: ${itemTitle}`;
+
+            renderChatMessages();
+            openModal('chatModal');
+            startChatPolling();
+        }
+
+        // 賣家打開買家諮詢清單
+        function openSellerChatList(itemId, itemTitle) {
+            const container = document.getElementById('sellerChatList');
+            container.innerHTML = '';
+            let hasChats = false;
+
+            Object.keys(chatHistory).forEach(roomId => {
+                if (roomId.startsWith(itemId + "_")) {
+                    hasChats = true;
+                    const buyerEmail = roomId.split('_')[1];
+                    const messages = chatHistory[roomId] || [];
+                    const lastMessage = messages[messages.length - 1]?.text || "尚無訊息";
+                    
+                    let buyerName = "買家同學";
+                    messages.forEach(m => {
+                        if (m.senderEmail === buyerEmail && m.senderName) buyerName = m.senderName;
+                    });
+
+                    const itemHtml = `
+                        <div onclick="closeModal('sellerChatListModal'); openChatFromSeller('${roomId}', '${buyerEmail}', '${buyerName}', '${itemTitle}')" class="flex items-center justify-between p-3 bg-slate-50 hover:bg-indigo-50 rounded-xl cursor-pointer transition-colors border border-slate-100">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xs">
+                                    ${buyerName[0]}
+                                </div>
+                                <div class="max-w-[240px]">
+                                    <h4 class="font-bold text-slate-800 text-xs">${buyerName}</h4>
+                                    <p class="text-[11px] text-slate-400 truncate">${lastMessage}</p>
+                                </div>
+                            </div>
+                            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+                        </div>
+                    `;
+                    container.innerHTML += itemHtml;
                 }
-            } catch (err) {
-                console.error("實時聊天同步失敗:", err);
+            });
+
+            if (!hasChats) {
+                container.innerHTML = `<div class="text-center text-xs text-slate-400 my-auto py-8">目前還沒有買家詢問這件物品喔！</div>`;
+            }
+
+            openModal('sellerChatListModal');
+            lucide.createIcons();
+        }
+
+        // 定時每5秒異步獲取最新的伺服器聊天數據庫
+        function startChatPolling() {
+            if (chatInterval) clearInterval(chatInterval);
+            chatInterval = setInterval(async () => {
+                await fetchChatFromServer();
+                if (activeChatContext) renderChatMessages();
+            }, 5000);
+        }
+
+        async function fetchChatFromServer() {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("AKfycbxYXZK3GJqrcLJ_cHaod_2oe7csAZh7tYMIIoDdILN_UK39_W5yA6ZHT8VDOVvVG76e/exec")) return;
+            try {
+                const res = await fetch(APPS_SCRIPT_URL);
+                const data = await res.json();
+                if (data && data.chats) {
+                    chatHistory = data.chats;
+                    localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+                }
+            } catch (e) {
+                console.error("背景刷新聊天紀錄同步失敗", e);
             }
         }
 
-        // 【更新優化】渲染雲端返回的聊天訊息
-        function renderChatMessages(messages = []) {
+        function renderChatMessages() {
             const container = document.getElementById('chatMessages');
-            
-            // 紀錄使用者目前是不是已經拉到最下面
-            const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 60;
-            
             container.innerHTML = '';
+            
+            const messages = chatHistory[activeChatContext.roomId] || [];
             if(messages.length === 0) {
                 container.innerHTML = `<div class="text-center text-xs text-slate-400 my-auto">這裡是對話的開端，打個招呼吧！</div>`;
                 return;
@@ -440,42 +530,41 @@
                 `;
                 container.innerHTML += msgHtml;
             });
-            
-            // 如果原本就在最下面，或是第一次載入，則自動滾動探底
-            if (isAtBottom) {
-                container.scrollTop = container.scrollHeight;
-            }
+            container.scrollTop = container.scrollHeight;
         }
 
-        // 【更新優化】將新訊息發布儲存至 Google 雲端
         async function sendChatMessage() {
             const input = document.getElementById('chatInput');
             const text = input.value.trim();
-            if(!text || !activeChatContext || !APPS_SCRIPT_URL) return;
+            if(!text || !activeChatContext) return;
+
+            if (!chatHistory[activeChatContext.roomId]) {
+                chatHistory[activeChatContext.roomId] = [];
+            }
 
             const newMessage = {
                 senderEmail: currentUser.email,
+                senderName: currentUser.name,
                 text: text,
                 timestamp: new Date().toISOString()
             };
 
-            input.value = ''; // 立即清空輸入框優化體驗
+            chatHistory[activeChatContext.roomId].push(newMessage);
+            localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+            
+            // 同步回傳給 Google Sheets 雲端儲存
+            syncToSheet({
+                action: "sendChat",
+                roomId: activeChatContext.roomId,
+                message: newMessage,
+                itemId: activeChatContext.roomId.split('_')[0],
+                buyerEmail: activeChatContext.buyerEmail,
+                sellerEmail: activeChatContext.sellerEmail,
+                itemTitle: activeChatContext.itemTitle
+            });
 
-            try {
-                await fetch(APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify({
-                        action: "sendChat",
-                        roomId: activeChatContext.roomId,
-                        message: newMessage
-                    })
-                });
-                // 發送後立即更新一次
-                fetchChatMessagesFromServer();
-            } catch (err) {
-                console.error("訊息發送失敗:", err);
-            }
+            input.value = '';
+            renderChatMessages();
         }
 
         // --- View Counter Logic ---
@@ -491,9 +580,6 @@
                 
                 const viewSpan = document.getElementById(`view-count-${id}`);
                 if(viewSpan) viewSpan.textContent = item.views;
-                
-                // 同步更新到雲端後端
-                syncToSheet({ action: "update", id: id, changes: { views: item.views } });
             }
 
             if(imageUrl) {
@@ -504,7 +590,7 @@
 
         // --- Data Handling ---
         async function syncToSheet(payload) {
-            if (!APPS_SCRIPT_URL) {
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("AKfycbxYXZK3GJqrcLJ_cHaod_2oe7csAZh7tYMIIoDdILN_UK39_W5yA6ZHT8VDOVvVG76e/exec")) {
                 console.warn("Apps Script URL 未設定");
                 return;
             }
@@ -537,10 +623,17 @@
         }
 
         async function fetchRecordsFromSheet() {
-            if (!APPS_SCRIPT_URL) return null;
+            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("AKfycbxYXZK3GJqrcLJ_cHaod_2oe7csAZh7tYMIIoDdILN_UK39_W5yA6ZHT8VDOVvVG76e/exec")) return null;
             try {
                 const res = await fetch(APPS_SCRIPT_URL);
                 const data = await res.json();
+                
+                // 獲取同步數據庫中保存的所有歷史對話
+                if (data && data.chats) {
+                    chatHistory = data.chats;
+                    localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
+                }
+
                 const rawArray = data.records || (Array.isArray(data) ? data : null);
                 return Array.isArray(rawArray) ? rawArray.map(normalizeRecord) : null;
             } catch (e) {
@@ -564,7 +657,7 @@
             const records = await loadData();
             records.push(newRecord);
             localStorage.setItem("records", JSON.stringify(records));
-            await syncToSheet({ action: "create", record: newRecord });
+            syncToSheet({ action: "create", record: newRecord });
             await renderList(records);
         }
 
@@ -667,7 +760,9 @@
                                             <i data-lucide="message-circle" class="w-3.5 h-3.5"></i> 聯絡賣家
                                         </button>
                                     ` : `
-                                        <span class="flex items-center gap-1 text-[11px] font-bold bg-slate-100 text-slate-400 px-2.5 py-1.5 rounded-lg">您的物品</span>
+                                        <button onclick="openSellerChatList('${item.id}', '${item.title}')" class="flex items-center gap-1 text-[11px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-700 px-2.5 py-1.5 rounded-lg transition-colors" title="查看買家諮詢">
+                                            <i data-lucide="message-square" class="w-3.5 h-3.5"></i> 買家諮詢
+                                        </button>
                                     `}
 
                                     ${isOwner ? `
@@ -714,13 +809,15 @@
             document.getElementById(modalId).style.display = 'block';
         }
 
-        // 【更新優化】關閉彈窗時釋放實時對話輪詢計時器
         function closeModal(modalId) {
             document.getElementById(modalId).style.display = 'none';
             if(modalId === 'postModal') document.getElementById('postForm').reset();
             if(modalId === 'chatModal') {
                 activeChatContext = null;
-                clearInterval(chatInterval); // 關閉對話時清除定時器，避免浪費伺服器資源
+                if (chatInterval) {
+                    clearInterval(chatInterval); // 關閉對話框時立即停用背景刷新，節省資源
+                    chatInterval = null;
+                }
             }
         }
 
@@ -787,7 +884,7 @@
                 records[index].status = newStatus;
                 localStorage.setItem("records", JSON.stringify(records));
                 await renderList(records);
-                await syncToSheet({ action: "update", id: id, changes: { status: newStatus } });
+                syncToSheet({ action: "update", id: id, changes: { status: newStatus } });
             }
         }
 
@@ -797,7 +894,7 @@
                 records = records.filter(r => r.id !== id);
                 localStorage.setItem("records", JSON.stringify(records));
                 await renderList(records);
-                await syncToSheet({ action: "delete", id: id });
+                syncToSheet({ action: "delete", id: id });
             }
         }
 
@@ -847,11 +944,7 @@
         // 點擊 Modal 外圍自動關閉
         window.onclick = function(event) {
             if (event.target.classList.contains('modal-overlay')) {
-                event.target.style.display = 'none';
-                if(event.target.id === 'chatModal') {
-                    activeChatContext = null;
-                    clearInterval(chatInterval); // 外部點擊關閉也清除定時器
-                }
+                closeModal(event.target.id);
             }
         }
     </script>
