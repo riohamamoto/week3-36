@@ -257,8 +257,7 @@
                 </button>
             </div>
             
-            <div id="chatMessages" class="flex-1 p-4 overflow-y-auto bg-white flex flex-col gap-3">
-                </div>
+            <div id="chatMessages" class="flex-1 p-4 overflow-y-auto bg-white flex flex-col gap-3"></div>
 
             <div class="p-3 bg-slate-50 border-t border-slate-100 flex gap-2">
                 <input type="text" id="chatInput" placeholder="輸入訊息..." class="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500" onkeypress="if(event.key === 'Enter') sendChatMessage()">
@@ -278,7 +277,8 @@
 
     <script>
         // --- Configuration ---
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyGP_gB-g8W3ZI8JkUQPcghDgHu1H1g2nZ-NAI2Xv8t-yF4SckTZPB6d490JcsMY6uR/exec"; 
+        // 請確保填入您新部署後的 Apps Script Web 應用程式網址
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyaWUV4h8bcyqhEyBzJ9k-W_F_kQpJQZIU8AsqXmUXlXKrvFopwmWJVq4ZZHLiyJekv/exec"; 
 
         // Global State
         let currentStatusFilter = 'active'; 
@@ -289,7 +289,7 @@
         
         // Chat State
         let activeChatContext = null; 
-        let chatHistory = JSON.parse(localStorage.getItem("chatHistory") || "{}");
+        let chatInterval = null; // 【新增】用來管理實時輪詢定時器
 
         // --- Core Functions ---
 
@@ -370,7 +370,7 @@
             });
         }
 
-        // --- Chat System Logic ---
+        // --- 【重大更新】動態雲端聊天系統邏輯 ---
         function openChat(itemId, sellerEmail, sellerName, sellerPic, itemTitle) {
             if (!currentUser) {
                 alert("請先登入後再聯絡賣家！");
@@ -381,7 +381,7 @@
                 return;
             }
             
-            // Generate unique chat room ID based on Item and Buyer
+            // 建立跨瀏覽器唯一的聊天室房號
             const roomId = `${itemId}_${currentUser.email}`;
             activeChatContext = { roomId, sellerEmail, sellerName, sellerPic, itemTitle };
             
@@ -389,15 +389,38 @@
             document.getElementById('chatUserName').textContent = sellerName;
             document.getElementById('chatItemTitle').textContent = `關於: ${itemTitle}`;
             
-            renderChatMessages();
+            // 1. 立即跟後端拉取一次最新訊息
+            fetchChatMessagesFromServer();
+            
+            // 2. 開啟定時器每 3 秒自動同步一次後端數據，達成實時聊天效果
+            clearInterval(chatInterval);
+            chatInterval = setInterval(fetchChatMessagesFromServer, 3000);
+            
             openModal('chatModal');
         }
 
-        function renderChatMessages() {
+        // 【新增函數】向後端獲取實時聊天數據
+        async function fetchChatMessagesFromServer() {
+            if (!activeChatContext || !APPS_SCRIPT_URL) return;
+            try {
+                const res = await fetch(`${APPS_SCRIPT_URL}?action=getChats&roomId=${encodeURIComponent(activeChatContext.roomId)}`);
+                const data = await res.json();
+                if (data && data.messages) {
+                    renderChatMessages(data.messages);
+                }
+            } catch (err) {
+                console.error("實時聊天同步失敗:", err);
+            }
+        }
+
+        // 【更新優化】渲染雲端返回的聊天訊息
+        function renderChatMessages(messages = []) {
             const container = document.getElementById('chatMessages');
-            container.innerHTML = '';
             
-            const messages = chatHistory[activeChatContext.roomId] || [];
+            // 紀錄使用者目前是不是已經拉到最下面
+            const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 60;
+            
+            container.innerHTML = '';
             if(messages.length === 0) {
                 container.innerHTML = `<div class="text-center text-xs text-slate-400 my-auto">這裡是對話的開端，打個招呼吧！</div>`;
                 return;
@@ -417,18 +440,18 @@
                 `;
                 container.innerHTML += msgHtml;
             });
-            // Scroll to bottom
-            container.scrollTop = container.scrollHeight;
+            
+            // 如果原本就在最下面，或是第一次載入，則自動滾動探底
+            if (isAtBottom) {
+                container.scrollTop = container.scrollHeight;
+            }
         }
 
-        function sendChatMessage() {
+        // 【更新優化】將新訊息發布儲存至 Google 雲端
+        async function sendChatMessage() {
             const input = document.getElementById('chatInput');
             const text = input.value.trim();
-            if(!text || !activeChatContext) return;
-
-            if (!chatHistory[activeChatContext.roomId]) {
-                chatHistory[activeChatContext.roomId] = [];
-            }
+            if(!text || !activeChatContext || !APPS_SCRIPT_URL) return;
 
             const newMessage = {
                 senderEmail: currentUser.email,
@@ -436,32 +459,43 @@
                 timestamp: new Date().toISOString()
             };
 
-            chatHistory[activeChatContext.roomId].push(newMessage);
-            localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
-            
-            input.value = '';
-            renderChatMessages();
+            input.value = ''; // 立即清空輸入框優化體驗
+
+            try {
+                await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({
+                        action: "sendChat",
+                        roomId: activeChatContext.roomId,
+                        message: newMessage
+                    })
+                });
+                // 發送後立即更新一次
+                fetchChatMessagesFromServer();
+            } catch (err) {
+                console.error("訊息發送失敗:", err);
+            }
         }
 
         // --- View Counter Logic ---
         function recordView(id, imageUrl) {
-            // 點擊圖片時記錄一次瀏覽並放大
             let records = JSON.parse(localStorage.getItem("records") || "[]");
             let item = records.find(r => r.id === id);
             if(item) {
                 item.views = (item.views || 0) + 1;
                 localStorage.setItem("records", JSON.stringify(records));
                 
-                // 本地更新 state 避免需要完整重載
                 const idx = localRecords.findIndex(r => r.id === id);
                 if(idx > -1) localRecords[idx].views = item.views;
                 
-                // 更新畫面上的數字
                 const viewSpan = document.getElementById(`view-count-${id}`);
                 if(viewSpan) viewSpan.textContent = item.views;
+                
+                // 同步更新到雲端後端
+                syncToSheet({ action: "update", id: id, changes: { views: item.views } });
             }
 
-            // 打開圖片放大鏡
             if(imageUrl) {
                 document.getElementById('lightboxImg').src = imageUrl;
                 openModal('imageLightbox');
@@ -485,99 +519,44 @@
             }
         }
 
-        // --- 優化後的標準化資料函數（深度相容試算表欄位結構與字串物件） ---
         function normalizeRecord(record) {
-            let publisherData = { name: "匿名同學", email: "", picture: "" };
-            
-            // 解析試算表可能回傳的 JSON 字串或欄位損壞問題
-            if (record.publisher) {
-                if (typeof record.publisher === 'string') {
-                    try {
-                        publisherData = JSON.parse(record.publisher);
-                    } catch (e) {
-                        if (record.publisher !== "[object Object]") {
-                            publisherData.name = record.publisher;
-                        }
-                    }
-                } else if (typeof record.publisher === 'object') {
-                    publisherData = { ...publisherData, ...record.publisher };
-                }
-            }
-            
-            // 如果上述解析失敗，嘗試相容扁平化寫入的獨立欄位 (以防萬一)
-            if (!publisherData.email) {
-                publisherData.name = record.publisherName || record.PublisherName || publisherData.name;
-                publisherData.email = record.publisherEmail || record.PublisherEmail || "";
-                publisherData.picture = record.publisherPic || record.PublisherPic || record.publisherPicture || "";
-            }
-
             return {
                 id: record.id || record.ID || "",
-                createdAt: record.createdAt || record.CreatedAt || new Date().toISOString(),
-                title: record.title || record.Title || "未命名物品",
+                createdAt: record.createdAt || record.CreatedAt || "",
+                title: record.title || record.Title || "",
                 description: record.description || record.Description || "",
                 category: record.category || record.Category || "其他",
-                price: record.price !== undefined ? parseFloat(record.price) : (parseFloat(record.Price) || 0),
+                price: record.price !== undefined ? record.price : (record.Price || 0),
                 imageUrl: record.imageUrl || record.ImageUrl || "",
                 status: record.status || record.Status || "active",
                 condition: record.condition || record.Condition || "九成新",
                 contact: record.contact || record.Contact || "未提供",
-                views: parseInt(record.views) || 0,
-                publisher: publisherData
+                views: record.views || 0,
+                publisher: record.publisher || { name: "匿名同學", email: "", picture: "" } 
             };
         }
 
-        // --- 安全與除錯強化的資料獲取函數 ---
         async function fetchRecordsFromSheet() {
-            if (!APPS_SCRIPT_URL) {
-                console.warn("未設定 APPS_SCRIPT_URL，無法從雲端同步。");
-                return null;
-            }
+            if (!APPS_SCRIPT_URL) return null;
             try {
-                console.log("正在從 Google Sheet 載入遠端物件中...");
                 const res = await fetch(APPS_SCRIPT_URL);
-                if (!res.ok) {
-                    console.error("遠端連線回應異常，狀態碼:", res.status);
-                    return null;
-                }
                 const data = await res.json();
-                console.log("遠端 GAS 原始回傳數據內容:", data);
-                
-                // 相容包含 { records: [...] } 物件或是純陣列的格式
                 const rawArray = data.records || (Array.isArray(data) ? data : null);
-                if (Array.isArray(rawArray)) {
-                    return rawArray.map(normalizeRecord);
-                } else {
-                    console.warn("GAS 回傳的數據格式不符合預期 (必須為 records 陣列):", data);
-                    return null;
-                }
+                return Array.isArray(rawArray) ? rawArray.map(normalizeRecord) : null;
             } catch (e) {
-                console.error("重大連線異常！無法成功從 Google Sheet 抓取物件：", e);
                 return null;
             }
         }
 
         async function loadData() {
-            try {
-                const remote = await fetchRecordsFromSheet();
-                if (remote && Array.isArray(remote)) {
-                    localStorage.setItem("records", JSON.stringify(remote));
-                    localRecords = remote;
-                    return remote;
-                }
-            } catch (err) {
-                console.warn("遠端抓取失敗，準備降級讀取本地快取。");
+            const remote = await fetchRecordsFromSheet();
+            if (remote) {
+                localStorage.setItem("records", JSON.stringify(remote));
+                localRecords = remote;
+                return remote;
             }
-
-            // 雲端不可用時，啟用安全 LocalStorage 快取防禦
-            try {
-                const data = localStorage.getItem("records");
-                localRecords = data ? JSON.parse(data).map(normalizeRecord) : [];
-            } catch (e) {
-                console.error("LocalStorage 本地快取破壞，自動清理壞檔以免持續損壞中斷:", e);
-                localRecords = [];
-                localStorage.removeItem("records");
-            }
+            const data = localStorage.getItem("records");
+            localRecords = data ? JSON.parse(data).map(normalizeRecord) : [];
             return localRecords;
         }
 
@@ -585,7 +564,7 @@
             const records = await loadData();
             records.push(newRecord);
             localStorage.setItem("records", JSON.stringify(records));
-            syncToSheet({ action: "create", record: newRecord });
+            await syncToSheet({ action: "create", record: newRecord });
             await renderList(records);
         }
 
@@ -630,7 +609,6 @@
 
             filtered.forEach(item => {
                 const isFavorite = wishlist.includes(item.id);
-                // 確認是否為發佈者本人
                 const isOwner = currentUser && item.publisher && currentUser.email === item.publisher.email && currentUser.email !== "";
                 
                 const statusBadge = item.status === 'active' 
@@ -736,10 +714,14 @@
             document.getElementById(modalId).style.display = 'block';
         }
 
+        // 【更新優化】關閉彈窗時釋放實時對話輪詢計時器
         function closeModal(modalId) {
             document.getElementById(modalId).style.display = 'none';
             if(modalId === 'postModal') document.getElementById('postForm').reset();
-            if(modalId === 'chatModal') activeChatContext = null;
+            if(modalId === 'chatModal') {
+                activeChatContext = null;
+                clearInterval(chatInterval); // 關閉對話時清除定時器，避免浪費伺服器資源
+            }
         }
 
         async function handlePost(e) {
@@ -805,7 +787,7 @@
                 records[index].status = newStatus;
                 localStorage.setItem("records", JSON.stringify(records));
                 await renderList(records);
-                syncToSheet({ action: "update", id: id, changes: { status: newStatus } });
+                await syncToSheet({ action: "update", id: id, changes: { status: newStatus } });
             }
         }
 
@@ -815,7 +797,7 @@
                 records = records.filter(r => r.id !== id);
                 localStorage.setItem("records", JSON.stringify(records));
                 await renderList(records);
-                syncToSheet({ action: "delete", id: id });
+                await syncToSheet({ action: "delete", id: id });
             }
         }
 
@@ -866,7 +848,10 @@
         window.onclick = function(event) {
             if (event.target.classList.contains('modal-overlay')) {
                 event.target.style.display = 'none';
-                if(event.target.id === 'chatModal') activeChatContext = null;
+                if(event.target.id === 'chatModal') {
+                    activeChatContext = null;
+                    clearInterval(chatInterval); // 外部點擊關閉也清除定時器
+                }
             }
         }
     </script>
