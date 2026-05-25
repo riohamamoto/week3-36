@@ -122,7 +122,7 @@
                 </div>
                 <div class="w-px h-10 bg-slate-200"></div>
                 <div class="flex flex-col min-w-[70px]">
-                    <span class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Total 總總數</span>
+                    <span class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Total 總數量</span>
                     <span id="statTotal" class="text-3xl font-black text-slate-800">0</span>
                 </div>
             </div>
@@ -257,8 +257,7 @@
                 </button>
             </div>
             
-            <div id="chatMessages" class="flex-1 p-4 overflow-y-auto bg-white flex flex-col gap-3">
-                </div>
+            <div id="chatMessages" class="flex-1 p-4 overflow-y-auto bg-white flex flex-col gap-3"></div>
 
             <div class="p-3 bg-slate-50 border-t border-slate-100 flex gap-2">
                 <input type="text" id="chatInput" placeholder="輸入訊息..." class="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500" onkeypress="if(event.key === 'Enter') sendChatMessage()">
@@ -277,7 +276,7 @@
     </div>
 
     <script>
-        // --- Configuration ---
+        // --- 修正：已填上您最新的 Apps Script 網址 ---
         const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLWnbfopyKt7yNakdNqyRhuEuFy-4JpwyOXBAXBiH8g0z3QNVoxDFzvWhbYF9lEY13/exec"; 
 
         // Global State
@@ -287,11 +286,8 @@
         let currentUser = null; 
         let wishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
         
-        // Chat State
         let activeChatContext = null; 
         let chatHistory = JSON.parse(localStorage.getItem("chatHistory") || "{}");
-
-        // --- Core Functions ---
 
         function decodeJwt(token) {
             try {
@@ -301,9 +297,7 @@
                     return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
                 }).join(''));
                 return JSON.parse(jsonPayload);
-            } catch(e) {
-                return null;
-            }
+            } catch(e) { return null; }
         }
 
         function handleCredentialResponse(response) {
@@ -356,9 +350,7 @@
         function toggleWishlist(id) {
             if (wishlist.includes(id)) {
                 wishlist = wishlist.filter(item => item !== id);
-            } else {
-                wishlist.push(id);
-            }
+            } else { wishlist.push(id); }
             localStorage.setItem("wishlist", JSON.stringify(wishlist));
             renderList(localRecords);
         }
@@ -370,18 +362,10 @@
             });
         }
 
-        // --- Chat System Logic ---
         function openChat(itemId, sellerEmail, sellerName, sellerPic, itemTitle) {
-            if (!currentUser) {
-                alert("請先登入後再聯絡賣家！");
-                return;
-            }
-            if (currentUser.email === sellerEmail) {
-                alert("這是您自己發佈的物品喔！");
-                return;
-            }
+            if (!currentUser) { alert("請先登入後再聯絡賣家！"); return; }
+            if (currentUser.email === sellerEmail) { alert("這是您自己發佈的物品喔！"); return; }
             
-            // Generate unique chat room ID based on Item and Buyer
             const roomId = `${itemId}_${currentUser.email}`;
             activeChatContext = { roomId, sellerEmail, sellerName, sellerPic, itemTitle };
             
@@ -417,7 +401,6 @@
                 `;
                 container.innerHTML += msgHtml;
             });
-            // Scroll to bottom
             container.scrollTop = container.scrollHeight;
         }
 
@@ -443,41 +426,34 @@
             renderChatMessages();
         }
 
-        // --- View Counter Logic ---
         function recordView(id, imageUrl) {
-            // 點擊圖片時記錄一次瀏覽並放大
             let records = JSON.parse(localStorage.getItem("records") || "[]");
             let item = records.find(r => r.id === id);
             if(item) {
                 item.views = (item.views || 0) + 1;
                 localStorage.setItem("records", JSON.stringify(records));
                 
-                // 本地更新 state 避免需要完整重載
                 const idx = localRecords.findIndex(r => r.id === id);
                 if(idx > -1) localRecords[idx].views = item.views;
                 
-                // 更新畫面上的數字
                 const viewSpan = document.getElementById(`view-count-${id}`);
                 if(viewSpan) viewSpan.textContent = item.views;
             }
 
-            // 打開圖片放大鏡
             if(imageUrl) {
                 document.getElementById('lightboxImg').src = imageUrl;
                 openModal('imageLightbox');
             }
         }
 
-        // --- Data Handling ---
+        // --- 修正：加入了 redirect: "follow" 確保資料同步穩定 ---
         async function syncToSheet(payload) {
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbxYXZK3GJqrcLJ_cHaod_2oe7csAZh7tYMIIoDdILN_UK39_W5yA6ZHT8VDOVvVG76e/exec")) {
-                console.warn("Apps Script URL 未設定");
-                return;
-            }
+            if (!APPS_SCRIPT_URL) return;
             try {
                 await fetch(APPS_SCRIPT_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    redirect: 'follow', // 關鍵修正
                     body: JSON.stringify(payload)
                 });
             } catch (err) {
@@ -498,15 +474,15 @@
                 condition: record.condition || record.Condition || "九成新",
                 contact: record.contact || record.Contact || "未提供",
                 views: record.views || 0,
-                // 發佈者綁定 (相容舊資料)
                 publisher: record.publisher || { name: "匿名同學", email: "", picture: "" } 
             };
         }
 
+        // --- 修正：GET 請求也確保重定向跟隨 ---
         async function fetchRecordsFromSheet() {
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("https://script.google.com/macros/s/AKfycbxYXZK3GJqrcLJ_cHaod_2oe7csAZh7tYMIIoDdILN_UK39_W5yA6ZHT8VDOVvVG76e/exec")) return null;
+            if (!APPS_SCRIPT_URL) return null;
             try {
-                const res = await fetch(APPS_SCRIPT_URL);
+                const res = await fetch(APPS_SCRIPT_URL, { redirect: 'follow' });
                 const data = await res.json();
                 const rawArray = data.records || (Array.isArray(data) ? data : null);
                 return Array.isArray(rawArray) ? rawArray.map(normalizeRecord) : null;
@@ -550,20 +526,14 @@
                 return statusMatch && categoryMatch && searchMatch;
             });
 
-            if (sortVal === 'priceLow') {
-                filtered.sort((a, b) => a.price - b.price);
-            } else if (sortVal === 'priceHigh') {
-                filtered.sort((a, b) => b.price - a.price);
-            } else if (sortVal === 'mostViewed') {
-                filtered.sort((a, b) => (b.views || 0) - (a.views || 0));
-            } else {
-                filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-            }
+            if (sortVal === 'priceLow') { filtered.sort((a, b) => a.price - b.price); }
+            else if (sortVal === 'priceHigh') { filtered.sort((a, b) => b.price - a.price); }
+            else if (sortVal === 'mostViewed') { filtered.sort((a, b) => (b.views || 0) - (a.views || 0)); }
+            else { filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); }
 
             document.getElementById('statActive').innerText = allRecords.filter(r => r.status === 'active').length;
             document.getElementById('statDone').innerText = allRecords.filter(r => r.status === 'done').length;
             document.getElementById('statTotal').innerText = allRecords.length;
-
             document.getElementById('wishlistCountBadge').classList.toggle('hidden', wishlist.length === 0);
 
             grid.innerHTML = '';
@@ -576,7 +546,6 @@
 
             filtered.forEach(item => {
                 const isFavorite = wishlist.includes(item.id);
-                // 確認是否為發佈者本人
                 const isOwner = currentUser && item.publisher && currentUser.email === item.publisher.email && currentUser.email !== "";
                 
                 const statusBadge = item.status === 'active' 
@@ -598,9 +567,7 @@
                                 ? `<img src="${item.imageUrl}" alt="${item.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">`
                                 : `<div class="w-full h-full flex items-center justify-center text-slate-300"><i data-lucide="image" class="w-10 h-10"></i></div>`
                             }
-                            <div class="absolute top-3 left-3 z-10">
-                                ${statusBadge}
-                            </div>
+                            <div class="absolute top-3 left-3 z-10">${statusBadge}</div>
                             <div class="absolute top-3 right-3 z-10 flex flex-col gap-2">
                                 <button onclick="event.stopPropagation(); toggleWishlist('${item.id}')" class="w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-sm text-slate-400 hover:text-rose-500 transition-colors">
                                     <i data-lucide="heart" class="w-4 h-4 ${isFavorite ? 'fill-rose-500 text-rose-500' : ''}"></i>
@@ -619,16 +586,13 @@
                                 <h3 class="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1">${item.title}</h3>
                                 <span class="bg-indigo-50 text-indigo-600 text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0">${item.category}</span>
                             </div>
-                            
                             <div class="flex gap-1.5 mb-3">
                                 <span class="text-[10px] font-semibold px-2 py-0.5 rounded ${conditionClass}">${item.condition}</span>
                             </div>
-
                             <p class="text-slate-500 text-xs line-clamp-2 mb-4 h-8">${item.description}</p>
                             
                             <div class="flex items-center justify-between mb-4 mt-auto">
                                 <span class="text-lg font-black text-slate-900">MOP ${item.price}</span>
-                                
                                 <div class="flex gap-1">
                                     ${!isOwner ? `
                                         <button onclick="openChat('${item.id}', '${safePublisherEmail}', '${safePublisherName}', '${safePublisherPic}', '${item.title}')" class="flex items-center gap-1 text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-2.5 py-1.5 rounded-lg transition-colors" title="開啟聊天室聯絡賣家">
@@ -637,7 +601,6 @@
                                     ` : `
                                         <span class="flex items-center gap-1 text-[11px] font-bold bg-slate-100 text-slate-400 px-2.5 py-1.5 rounded-lg">您的物品</span>
                                     `}
-
                                     ${isOwner ? `
                                         <div class="flex border-l border-slate-100 pl-1 ml-1 gap-0.5">
                                             ${item.status === 'active' ? `
@@ -673,12 +636,8 @@
             lucide.createIcons();
         }
 
-        // --- UI Modal Controls ---
         function openModal(modalId) {
-            if(modalId === 'postModal' && !currentUser) { 
-                alert('請先完成 Google 登入後再發佈物品！'); 
-                return; 
-            }
+            if(modalId === 'postModal' && !currentUser) { alert('請先完成 Google 登入後再發佈物品！'); return; }
             document.getElementById(modalId).style.display = 'block';
         }
 
@@ -691,9 +650,7 @@
         async function handlePost(e) {
             e.preventDefault();
             if(!currentUser) return;
-
             const formData = new FormData(e.target);
-            
             const newRecord = {
                 id: Date.now() + "_" + Math.random().toString(36).slice(2,6),
                 createdAt: new Date().toISOString(),
@@ -706,14 +663,8 @@
                 condition: formData.get('condition'), 
                 contact: formData.get('contact'),
                 views: 0,
-                // 寫入發佈者身份 (需求1)
-                publisher: {
-                    name: currentUser.name,
-                    email: currentUser.email,
-                    picture: currentUser.picture
-                }
+                publisher: { name: currentUser.name, email: currentUser.email, picture: currentUser.picture }
             };
-
             await saveData(newRecord);
             closeModal('postModal');
         }
@@ -725,7 +676,6 @@
                 const isActive = (status === '全部' && btn.innerText === '全部') || 
                                  (status === 'active' && btn.innerText.includes('Active')) || 
                                  (status === 'done' && btn.innerText.includes('Done'));
-                
                 btn.className = isActive 
                     ? "status-btn px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200"
                     : "status-btn px-4 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-500 hover:text-slate-800";
@@ -766,11 +716,12 @@
             }
         }
 
-        // --- AI Summary Functions ---
+        // --- 修正：向後端請求 AI 分析加入 redirect: "follow" ---
         async function askAI(userPrompt) {
             const res = await fetch(APPS_SCRIPT_URL, {
                 method: "POST",
-                headers: { "Content-Type": "text/plain" },
+                headers: { "Content-Type": "text/plain;charset=utf-8" },
+                redirect: 'follow', // 關鍵修正
                 body: JSON.stringify({ action: "askAI", prompt: userPrompt })
             });
             const data = await res.json();
@@ -809,7 +760,6 @@
             lucide.createIcons();
         };
 
-        // 點擊 Modal 外圍自動關閉
         window.onclick = function(event) {
             if (event.target.classList.contains('modal-overlay')) {
                 event.target.style.display = 'none';
