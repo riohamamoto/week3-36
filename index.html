@@ -98,7 +98,6 @@
             <div class="pt-2 flex justify-center gap-6 text-xs sm:text-sm text-indigo-200/90 font-medium">
                 <span class="flex items-center gap-1.5"><i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i> 校園電郵認證</span>
                 <span class="flex items-center gap-1.5"><i data-lucide="leaf" class="w-4 h-4 text-emerald-400"></i> 環保永續循環</span>
-                <span class="flex items-center gap-1.5"><i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i> AI 智能物價分析</span>
             </div>
         </div>
     </div>
@@ -371,7 +370,7 @@
 
         // --- Data Handling ---
         async function syncToSheet(payload) {
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("AKfycbxYXZK3GJqrcLJ_cHaod_2oe7csAZh7tYMIIoDdILN_UK39_W5yA6ZHT8VDOVvVG76e/exec")) {
+            if (!APPS_SCRIPT_URL) {
                 console.warn("Apps Script URL 未設定");
                 return;
             }
@@ -388,7 +387,7 @@
 
         function normalizeRecord(record) {
             return {
-                id: record.id || record.ID || "",
+                id: String(record.id || record.ID || ""),
                 createdAt: record.createdAt || record.CreatedAt || "",
                 title: record.title || record.Title || "",
                 description: record.description || record.Description || "",
@@ -397,14 +396,14 @@
                 imageUrl: record.imageUrl || record.ImageUrl || "",
                 status: record.status || record.Status || "active",
                 condition: record.condition || record.Condition || "九成新",
-                contact: record.contact || record.Contact || "未提供",
+                contact: String(record.contact || record.Contact || "未提供"), // 強制轉換為字串
                 views: record.views || 0,
                 publisher: record.publisher || { name: "匿名同學", email: "", picture: "" } 
             };
         }
 
         async function fetchRecordsFromSheet() {
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("AKfycbxYXZK3GJqrcLJ_cHaod_2oe7csAZh7tYMIIoDdILN_UK39_W5yA6ZHT8VDOVvVG76e/exec")) return null;
+            if (!APPS_SCRIPT_URL) return null;
             try {
                 const res = await fetch(APPS_SCRIPT_URL);
                 const data = await res.json();
@@ -489,7 +488,8 @@
 
                 const safePublisherName = item.publisher?.name || "匿名同學";
                 const safePublisherPic = item.publisher?.picture || "https://via.placeholder.com/20";
-                const safeContact = (item.contact || '').replace(/'/g, "\\'");
+                // 核心修復：強制將 contact 轉為字串後才呼叫 replace()，防止純數字引發語法錯誤
+                const safeContact = String(item.contact || '').replace(/'/g, "\\'");
 
                 const cardHTML = `
                     <div class="group bg-white rounded-2xl border border-slate-100 overflow-hidden hover:shadow-xl hover:shadow-indigo-100/40 hover:-translate-y-1 transition-all duration-300 flex flex-col h-full relative">
