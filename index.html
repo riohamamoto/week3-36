@@ -33,10 +33,6 @@
         /* 隱藏滾動條但保持功能 */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-        /* 聊天對話框樣式 */
-        .chat-message-sent { background-color: #4F46E5; color: white; border-bottom-right-radius: 4px; }
-        .chat-message-received { background-color: #F1F5F9; color: #1E293B; border-bottom-left-radius: 4px; }
     </style>
 </head>
 <body class="min-h-screen text-slate-800 relative overflow-x-hidden">
@@ -153,11 +149,6 @@
             </div>
             
             <div class="flex items-center gap-2">
-                <button onclick="handleAISummary()" id="aiBtn" class="flex items-center gap-2 bg-slate-900 text-slate-100 px-4 py-2 rounded-xl font-bold text-sm hover:bg-slate-800 transition-all active:scale-95 shadow-md shadow-slate-200 disabled:opacity-50">
-                    <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i>
-                    <span id="aiBtnText">AI 市集摘要</span>
-                </button>
-                
                 <button id="publishBtn" onclick="openModal('postModal')" disabled class="flex items-center gap-2 bg-slate-300 text-slate-500 cursor-not-allowed px-4 py-2 rounded-xl font-bold text-sm shadow-lg transition-all">
                     <i data-lucide="plus" class="w-4 h-4"></i>
                     請先登入平臺
@@ -242,49 +233,6 @@
         </div>
     </div>
 
-    <div id="sellerChatListModal" class="modal-overlay">
-        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 flex flex-col h-[400px] overflow-hidden">
-            <div class="bg-slate-50 border-b border-slate-100 p-4 flex justify-between items-center">
-                <div class="flex items-center gap-2">
-                    <i data-lucide="message-square" class="text-indigo-600 w-5 h-5"></i>
-                    <h3 class="font-bold text-slate-900 text-sm">買家諮詢列表</h3>
-                </div>
-                <button onclick="closeModal('sellerChatListModal')" class="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-200 rounded-lg transition-all">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-            <div id="sellerChatList" class="flex-1 p-4 overflow-y-auto bg-white flex flex-col gap-2">
-                </div>
-        </div>
-    </div>
-
-    <div id="chatModal" class="modal-overlay">
-        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 flex flex-col h-[500px] overflow-hidden">
-            <div class="bg-slate-50 border-b border-slate-100 p-4 flex justify-between items-center">
-                <div class="flex items-center gap-3">
-                    <img id="chatAvatar" src="" class="w-10 h-10 rounded-full object-cover shadow-sm">
-                    <div>
-                        <h3 id="chatUserName" class="font-bold text-slate-900 text-sm"></h3>
-                        <p id="chatItemTitle" class="text-xs text-slate-500 line-clamp-1"></p>
-                    </div>
-                </div>
-                <button onclick="closeModal('chatModal')" class="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-200 rounded-lg transition-all">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-            
-            <div id="chatMessages" class="flex-1 p-4 overflow-y-auto bg-white flex flex-col gap-3">
-                </div>
-
-            <div class="p-3 bg-slate-50 border-t border-slate-100 flex gap-2">
-                <input type="text" id="chatInput" placeholder="輸入訊息..." class="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500" onkeypress="if(event.key === 'Enter') sendChatMessage()">
-                <button onclick="sendChatMessage()" class="bg-indigo-600 text-white p-2 rounded-xl hover:bg-indigo-700 transition-colors flex items-center justify-center w-10">
-                    <i data-lucide="send" class="w-4 h-4"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-
     <div id="imageLightbox" class="modal-overlay flex items-center justify-center cursor-zoom-out" onclick="closeModal('imageLightbox')">
         <img id="lightboxImg" src="" class="max-w-[90vw] max-h-[90vh] object-contain rounded-xl shadow-2xl" onclick="event.stopPropagation()">
         <button class="absolute top-6 right-6 text-white/70 hover:text-white bg-black/50 p-2 rounded-full transition-all">
@@ -302,11 +250,6 @@
         let localRecords = []; 
         let currentUser = null; 
         let wishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
-        
-        // Chat State
-        let activeChatContext = null; 
-        let chatHistory = JSON.parse(localStorage.getItem("chatHistory") || "{}");
-        let chatInterval = null; // 背景自動同步計時器
 
         // --- Core Functions ---
 
@@ -387,184 +330,22 @@
             });
         }
 
-        // --- Chat System Logic ---
-        function openChat(itemId, sellerEmail, sellerName, sellerPic, itemTitle) {
+        // --- Copy Contact Info Logic ---
+        function copyContact(contactInfo) {
             if (!currentUser) {
-                alert("請先登入後再聯絡賣家！");
+                alert("請先登入後再查看賣家聯絡資訊！");
                 return;
             }
-            if (currentUser.email === sellerEmail) {
-                alert("這是您自己發佈的物品喔！");
+            if (!contactInfo || contactInfo === "未提供") {
+                alert("賣家未提供聯絡資訊！");
                 return;
             }
             
-            const roomId = `${itemId}_${currentUser.email}`;
-            activeChatContext = { 
-                roomId, 
-                sellerEmail, 
-                sellerName, 
-                sellerPic, 
-                itemTitle,
-                buyerEmail: currentUser.email,
-                buyerName: currentUser.name
-            };
-            
-            document.getElementById('chatAvatar').src = sellerPic || 'https://via.placeholder.com/40';
-            document.getElementById('chatUserName').textContent = sellerName;
-            document.getElementById('chatItemTitle').textContent = `關於: ${itemTitle}`;
-            
-            renderChatMessages();
-            openModal('chatModal');
-            startChatPolling();
-        }
-
-        // 賣家端打開特定買家的聊天室
-        function openChatFromSeller(roomId, buyerEmail, buyerName, itemTitle) {
-            activeChatContext = {
-                roomId,
-                sellerEmail: currentUser.email,
-                sellerName: currentUser.name,
-                sellerPic: currentUser.picture,
-                itemTitle,
-                buyerEmail: buyerEmail,
-                buyerName: buyerName
-            };
-
-            document.getElementById('chatAvatar').src = 'https://via.placeholder.com/40';
-            document.getElementById('chatUserName').textContent = `${buyerName} (買家諮詢)`;
-            document.getElementById('chatItemTitle').textContent = `關於: ${itemTitle}`;
-
-            renderChatMessages();
-            openModal('chatModal');
-            startChatPolling();
-        }
-
-        // 賣家打開買家諮詢清單
-        function openSellerChatList(itemId, itemTitle) {
-            const container = document.getElementById('sellerChatList');
-            container.innerHTML = '';
-            let hasChats = false;
-
-            Object.keys(chatHistory).forEach(roomId => {
-                if (roomId.startsWith(itemId + "_")) {
-                    hasChats = true;
-                    const buyerEmail = roomId.split('_')[1];
-                    const messages = chatHistory[roomId] || [];
-                    const lastMessage = messages[messages.length - 1]?.text || "尚無訊息";
-                    
-                    let buyerName = "買家同學";
-                    messages.forEach(m => {
-                        if (m.senderEmail === buyerEmail && m.senderName) buyerName = m.senderName;
-                    });
-
-                    const itemHtml = `
-                        <div onclick="closeModal('sellerChatListModal'); openChatFromSeller('${roomId}', '${buyerEmail}', '${buyerName}', '${itemTitle}')" class="flex items-center justify-between p-3 bg-slate-50 hover:bg-indigo-50 rounded-xl cursor-pointer transition-colors border border-slate-100">
-                            <div class="flex items-center gap-3">
-                                <div class="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xs">
-                                    ${buyerName[0]}
-                                </div>
-                                <div class="max-w-[240px]">
-                                    <h4 class="font-bold text-slate-800 text-xs">${buyerName}</h4>
-                                    <p class="text-[11px] text-slate-400 truncate">${lastMessage}</p>
-                                </div>
-                            </div>
-                            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
-                        </div>
-                    `;
-                    container.innerHTML += itemHtml;
-                }
+            navigator.clipboard.writeText(contactInfo).then(() => {
+                alert("成功！已複製賣家聯絡資訊：" + contactInfo);
+            }).catch(err => {
+                alert("複製失敗，請手動複製：" + contactInfo);
             });
-
-            if (!hasChats) {
-                container.innerHTML = `<div class="text-center text-xs text-slate-400 my-auto py-8">目前還沒有買家詢問這件物品喔！</div>`;
-            }
-
-            openModal('sellerChatListModal');
-            lucide.createIcons();
-        }
-
-        // 定時每5秒異步獲取最新的伺服器聊天數據庫
-        function startChatPolling() {
-            if (chatInterval) clearInterval(chatInterval);
-            chatInterval = setInterval(async () => {
-                await fetchChatFromServer();
-                if (activeChatContext) renderChatMessages();
-            }, 5000);
-        }
-
-        async function fetchChatFromServer() {
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("AKfycbxYXZK3GJqrcLJ_cHaod_2oe7csAZh7tYMIIoDdILN_UK39_W5yA6ZHT8VDOVvVG76e/exec")) return;
-            try {
-                const res = await fetch(APPS_SCRIPT_URL);
-                const data = await res.json();
-                if (data && data.chats) {
-                    chatHistory = data.chats;
-                    localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
-                }
-            } catch (e) {
-                console.error("背景刷新聊天紀錄同步失敗", e);
-            }
-        }
-
-        function renderChatMessages() {
-            const container = document.getElementById('chatMessages');
-            container.innerHTML = '';
-            
-            const messages = chatHistory[activeChatContext.roomId] || [];
-            if(messages.length === 0) {
-                container.innerHTML = `<div class="text-center text-xs text-slate-400 my-auto">這裡是對話的開端，打個招呼吧！</div>`;
-                return;
-            }
-
-            messages.forEach(msg => {
-                const isMe = msg.senderEmail === currentUser.email;
-                const timeStr = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                
-                const msgHtml = `
-                    <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[80%] ${isMe ? 'ml-auto' : 'mr-auto'}">
-                        <div class="px-3 py-2 rounded-2xl text-sm ${isMe ? 'chat-message-sent rounded-tr-none' : 'chat-message-received rounded-tl-none'}">
-                            ${msg.text}
-                        </div>
-                        <span class="text-[10px] text-slate-400 mt-1">${timeStr}</span>
-                    </div>
-                `;
-                container.innerHTML += msgHtml;
-            });
-            container.scrollTop = container.scrollHeight;
-        }
-
-        async function sendChatMessage() {
-            const input = document.getElementById('chatInput');
-            const text = input.value.trim();
-            if(!text || !activeChatContext) return;
-
-            if (!chatHistory[activeChatContext.roomId]) {
-                chatHistory[activeChatContext.roomId] = [];
-            }
-
-            const newMessage = {
-                senderEmail: currentUser.email,
-                senderName: currentUser.name,
-                text: text,
-                timestamp: new Date().toISOString()
-            };
-
-            chatHistory[activeChatContext.roomId].push(newMessage);
-            localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
-            
-            // 同步回傳給 Google Sheets 雲端儲存
-            syncToSheet({
-                action: "sendChat",
-                roomId: activeChatContext.roomId,
-                message: newMessage,
-                itemId: activeChatContext.roomId.split('_')[0],
-                buyerEmail: activeChatContext.buyerEmail,
-                sellerEmail: activeChatContext.sellerEmail,
-                itemTitle: activeChatContext.itemTitle
-            });
-
-            input.value = '';
-            renderChatMessages();
         }
 
         // --- View Counter Logic ---
@@ -628,12 +409,6 @@
                 const res = await fetch(APPS_SCRIPT_URL);
                 const data = await res.json();
                 
-                // 獲取同步數據庫中保存的所有歷史對話
-                if (data && data.chats) {
-                    chatHistory = data.chats;
-                    localStorage.setItem("chatHistory", JSON.stringify(chatHistory));
-                }
-
                 const rawArray = data.records || (Array.isArray(data) ? data : null);
                 return Array.isArray(rawArray) ? rawArray.map(normalizeRecord) : null;
             } catch (e) {
@@ -714,7 +489,7 @@
 
                 const safePublisherName = item.publisher?.name || "匿名同學";
                 const safePublisherPic = item.publisher?.picture || "https://via.placeholder.com/20";
-                const safePublisherEmail = item.publisher?.email || "";
+                const safeContact = (item.contact || '').replace(/'/g, "\\'");
 
                 const cardHTML = `
                     <div class="group bg-white rounded-2xl border border-slate-100 overflow-hidden hover:shadow-xl hover:shadow-indigo-100/40 hover:-translate-y-1 transition-all duration-300 flex flex-col h-full relative">
@@ -756,14 +531,10 @@
                                 
                                 <div class="flex gap-1">
                                     ${!isOwner ? `
-                                        <button onclick="openChat('${item.id}', '${safePublisherEmail}', '${safePublisherName}', '${safePublisherPic}', '${item.title}')" class="flex items-center gap-1 text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-2.5 py-1.5 rounded-lg transition-colors" title="開啟聊天室聯絡賣家">
-                                            <i data-lucide="message-circle" class="w-3.5 h-3.5"></i> 聯絡賣家
+                                        <button onclick="copyContact('${safeContact}')" class="flex items-center gap-1 text-[11px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-2.5 py-1.5 rounded-lg transition-colors" title="複製聯絡資訊">
+                                            <i data-lucide="copy" class="w-3.5 h-3.5"></i> 複製聯絡資訊
                                         </button>
-                                    ` : `
-                                        <button onclick="openSellerChatList('${item.id}', '${item.title}')" class="flex items-center gap-1 text-[11px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-700 px-2.5 py-1.5 rounded-lg transition-colors" title="查看買家諮詢">
-                                            <i data-lucide="message-square" class="w-3.5 h-3.5"></i> 買家諮詢
-                                        </button>
-                                    `}
+                                    ` : ''}
 
                                     ${isOwner ? `
                                         <div class="flex border-l border-slate-100 pl-1 ml-1 gap-0.5">
@@ -812,13 +583,6 @@
         function closeModal(modalId) {
             document.getElementById(modalId).style.display = 'none';
             if(modalId === 'postModal') document.getElementById('postForm').reset();
-            if(modalId === 'chatModal') {
-                activeChatContext = null;
-                if (chatInterval) {
-                    clearInterval(chatInterval); // 關閉對話框時立即停用背景刷新，節省資源
-                    chatInterval = null;
-                }
-            }
         }
 
         async function handlePost(e) {
@@ -895,42 +659,6 @@
                 localStorage.setItem("records", JSON.stringify(records));
                 await renderList(records);
                 syncToSheet({ action: "delete", id: id });
-            }
-        }
-
-        // --- AI Summary Functions ---
-        async function askAI(userPrompt) {
-            const res = await fetch(APPS_SCRIPT_URL, {
-                method: "POST",
-                headers: { "Content-Type": "text/plain" },
-                body: JSON.stringify({ action: "askAI", prompt: userPrompt })
-            });
-            const data = await res.json();
-            return data.result || data.error || "AI 沒有回應";
-        }
-
-        async function handleAISummary() {
-            const btn = document.getElementById('aiBtn');
-            const text = document.getElementById('aiBtnText');
-            btn.disabled = true;
-            text.textContent = '分析市集中...';
-            try {
-                const records = await loadData();
-                if (records.length === 0) { alert('目前沒有二手物品資料可以分析。'); return; }
-                
-                const summaryInput = records.slice(0, 30).map(r =>
-                    `[${r.category}] 名稱: ${r.title}, 價格: MOP ${r.price}, 描述: ${r.description}`
-                ).join('\n');
-                
-                const prompt = '以下是校園二手交換平臺目前的上架物品列表。請用繁體中文，用 3-5 句概括目前同學們最主要出清的物品類型、價格範圍落點、以及給買家或賣家的實用市集建議:\n\n' + summaryInput;
-                
-                const result = await askAI(prompt);
-                alert(result);
-            } catch (e) {
-                alert('AI 分析出錯：' + e.message);
-            } finally {
-                btn.disabled = false;
-                text.textContent = 'AI 市集摘要';
             }
         }
 
